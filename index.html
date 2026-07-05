@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
-    <title>Zombie Iso Prototype v0.2</title>
+    <title>Zombie Iso Prototype v0.3</title>
 
     <style>
       html,
@@ -42,17 +42,50 @@
       const TILE_W = 64;
       const TILE_H = 32;
 
-      const MAP_W = 32;
-      const MAP_H = 32;
+      const CHUNK_SIZE = 32;
+      const LOAD_RADIUS = 1; // 1 = 3×3 чанка вокруг игрока
 
-      const MAP_OFFSET_X = 900;
-      const MAP_OFFSET_Y = 70;
+      const WORLD_OFFSET_X = 900;
+      const WORLD_OFFSET_Y = 70;
 
       const TileKind = {
         Grass: 0,
         Road: 1,
         Floor: 2,
+        Dirt: 3,
       };
+
+      function floorDiv(value, size) {
+        return Math.floor(value / size);
+      }
+
+      function positiveMod(value, mod) {
+        return ((value % mod) + mod) % mod;
+      }
+
+      function chunkKey(cx, cy) {
+        return `${cx},${cy}`;
+      }
+
+      function hashInt(x, y) {
+        let h = 2166136261;
+        h ^= x + 374761393;
+        h = Math.imul(h, 16777619);
+        h ^= y + 668265263;
+        h = Math.imul(h, 16777619);
+        h ^= h >>> 13;
+        h = Math.imul(h, 1274126177);
+        return h >>> 0;
+      }
+
+      function mulberry32(seed) {
+        return function () {
+          let t = (seed += 0x6d2b79f5);
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
 
       class VirtualStick {
         constructor(scene, side) {
@@ -188,36 +221,40 @@
         constructor() {
           super("IsoPrototypeScene");
 
-          this.maps = {};
-          this.currentMapId = "road_01";
-          this.currentMap = null;
+          this.chunkData = new Map();
+          this.renderedChunks = new Map();
 
-          this.worldObjects = [];
-          this.player = null;
-          this.playerArrow = null;
+          this.centerChunkX = 0;
+          this.centerChunkY = 0;
 
-          this.playerPos = { x: 15.5, y: 18.5 };
+          this.playerGlobalX = 15.5;
+          this.playerGlobalY = 18.5;
           this.playerSpeed = 4.2;
           this.playerRadius = 0.22;
 
+          this.player = null;
+          this.playerArrow = null;
           this.leftStick = null;
           this.rightStick = null;
           this.facingAngle = 0;
 
           this.infoText = null;
+          this.resetButton = null;
         }
 
         create() {
           this.input.addPointer(3);
 
-          this.maps = this.createWorldMaps();
-          this.loadMap("road_01", { x: 15.5, y: 18.5 });
+          this.centerChunkX = this.getPlayerChunkX();
+          this.centerChunkY = this.getPlayerChunkY();
+          this.ensureChunksAroundPlayer();
 
           this.createPlayer();
           this.createSticks();
           this.setupCamera();
           this.createUi();
           this.updateInfoText();
+          this.syncPlayerWorldPosition();
         }
 
         update(time, deltaMs) {
@@ -225,248 +262,70 @@
 
           this.updatePlayerFacing();
           this.updatePlayerMovement(dt);
-          this.handleMapTransition();
+          this.updateChunkStreamingIfNeeded();
           this.syncPlayerWorldPosition();
+          this.updateInfoText();
         }
 
         createUi() {
           this.infoText = this.add
             .text(12, 12, "", {
               fontFamily: "Arial",
-              fontSize: "16px",
+              fontSize: "15px",
               color: "#ffffff",
               backgroundColor: "#00000099",
               padding: { x: 8, y: 6 },
             })
             .setScrollFactor(0)
             .setDepth(100001);
+
+          this.resetButton = this.add
+            .text(this.scale.width - 86, 12, "RESET", {
+              fontFamily: "Arial",
+              fontSize: "15px",
+              color: "#ffffff",
+              backgroundColor: "#8b1e1ecc",
+              padding: { x: 12, y: 8 },
+            })
+            .setScrollFactor(0)
+            .setDepth(100001)
+            .setInteractive({ useHandCursor: true });
+
+          this.resetButton.on("pointerdown", () => {
+            this.resetPlayer();
+          });
+
+          this.scale.on("resize", () => {
+            if (this.resetButton) {
+              this.resetButton.setPosition(this.scale.width - 86, 12);
+            }
+          });
         }
 
         updateInfoText() {
-          if (!this.infoText || !this.currentMap) return;
+          if (!this.infoText) return;
+
+          const cx = this.getPlayerChunkX();
+          const cy = this.getPlayerChunkY();
+          const local = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
 
           this.infoText.setText(
-            `${this.currentMap.name}\nЛевый стик: ходьба\nПравый стик: поворот\nСтены теперь между тайлами\nПереход: по дороге к краю карты`
+            `v0.3 streaming chunks\n` +
+              `Загружено: 3×3 чанка\n` +
+              `Центр: ${this.centerChunkX}, ${this.centerChunkY}\n` +
+              `Игрок в чанке: ${cx}, ${cy}\n` +
+              `Локально: ${local.x.toFixed(1)} / ${local.y.toFixed(1)}\n` +
+              `Глобально: ${this.playerGlobalX.toFixed(1)} / ${this.playerGlobalY.toFixed(1)}`
           );
         }
 
-        createWorldMaps() {
-          const road01 = this.createBlankMap("road_01", "Карта 1: старая улица");
-          const road02 = this.createBlankMap("road_02", "Карта 2: продолжение дороги");
-
-          road01.neighbors.east = "road_02";
-          road02.neighbors.west = "road_01";
-
-          this.paintRoad(road01, 0, 14, 32, 4);
-          this.paintRoad(road01, 14, 0, 4, 32);
-          this.addHouseToMap(road01, 4, 5, 8, 6, "south", 3);
-          this.addHouseToMap(road01, 21, 20, 7, 7, "north", 3);
-
-          this.paintRoad(road02, 0, 14, 32, 4);
-          this.paintRoad(road02, 9, 0, 4, 18);
-          this.addHouseToMap(road02, 4, 20, 7, 7, "north", 3);
-          this.addShopToMap(road02, 18, 5, 10, 8);
-
-          return {
-            road_01: road01,
-            road_02: road02,
-          };
-        }
-
-        createBlankMap(id, name) {
-          const ground = [];
-          const hWalls = [];
-          const vWalls = [];
-
-          for (let y = 0; y < MAP_H; y++) {
-            const row = [];
-            for (let x = 0; x < MAP_W; x++) row.push(TileKind.Grass);
-            ground.push(row);
-          }
-
-          for (let y = 0; y < MAP_H + 1; y++) {
-            const row = [];
-            for (let x = 0; x < MAP_W; x++) row.push(false);
-            hWalls.push(row);
-          }
-
-          for (let y = 0; y < MAP_H; y++) {
-            const row = [];
-            for (let x = 0; x < MAP_W + 1; x++) row.push(false);
-            vWalls.push(row);
-          }
-
-          return {
-            id,
-            name,
-            ground,
-            hWalls,
-            vWalls,
-            neighbors: {
-              north: null,
-              south: null,
-              west: null,
-              east: null,
-            },
-          };
-        }
-
-        paintRoad(map, startX, startY, width, height) {
-          for (let y = startY; y < startY + height; y++) {
-            for (let x = startX; x < startX + width; x++) {
-              if (this.isInsideMap(x, y)) map.ground[y][x] = TileKind.Road;
-            }
-          }
-        }
-
-        addHouseToMap(map, startX, startY, width, height, doorSide, doorOffset) {
-          for (let y = startY; y < startY + height; y++) {
-            for (let x = startX; x < startX + width; x++) {
-              if (this.isInsideMap(x, y)) map.ground[y][x] = TileKind.Floor;
-            }
-          }
-
-          for (let x = startX; x < startX + width; x++) {
-            const topIsDoor = doorSide === "north" && x === startX + doorOffset;
-            const bottomIsDoor = doorSide === "south" && x === startX + doorOffset;
-
-            if (!topIsDoor) this.setHWall(map, x, startY, true);
-            if (!bottomIsDoor) this.setHWall(map, x, startY + height, true);
-          }
-
-          for (let y = startY; y < startY + height; y++) {
-            const leftIsDoor = doorSide === "west" && y === startY + doorOffset;
-            const rightIsDoor = doorSide === "east" && y === startY + doorOffset;
-
-            if (!leftIsDoor) this.setVWall(map, startX, y, true);
-            if (!rightIsDoor) this.setVWall(map, startX + width, y, true);
-          }
-        }
-
-        addShopToMap(map, startX, startY, width, height) {
-          this.addHouseToMap(map, startX, startY, width, height, "south", 4);
-
-          for (let x = startX + 1; x < startX + width - 1; x++) {
-            if (x !== startX + 4) {
-              this.setHWall(map, x, startY + height, true);
-            }
-          }
-        }
-
-        setHWall(map, x, y, value) {
-          if (x < 0 || x >= MAP_W || y < 0 || y > MAP_H) return;
-          map.hWalls[y][x] = value;
-        }
-
-        setVWall(map, x, y, value) {
-          if (x < 0 || x > MAP_W || y < 0 || y >= MAP_H) return;
-          map.vWalls[y][x] = value;
-        }
-
-        loadMap(mapId, spawnPos) {
-          this.currentMapId = mapId;
-          this.currentMap = this.maps[mapId];
-
-          if (!this.currentMap) {
-            throw new Error(`Map not found: ${mapId}`);
-          }
-
-          this.playerPos.x = spawnPos.x;
-          this.playerPos.y = spawnPos.y;
-
-          this.destroyWorldObjects();
-          this.drawCurrentMap();
-          this.updateInfoText();
+        resetPlayer() {
+          this.playerGlobalX = 15.5;
+          this.playerGlobalY = 18.5;
+          this.centerChunkX = this.getPlayerChunkX();
+          this.centerChunkY = this.getPlayerChunkY();
+          this.ensureChunksAroundPlayer();
           this.syncPlayerWorldPosition();
-        }
-
-        destroyWorldObjects() {
-          for (const obj of this.worldObjects) obj.destroy();
-          this.worldObjects = [];
-        }
-
-        rememberWorldObject(obj) {
-          this.worldObjects.push(obj);
-          return obj;
-        }
-
-        drawCurrentMap() {
-          for (let y = 0; y < MAP_H; y++) {
-            for (let x = 0; x < MAP_W; x++) {
-              const kind = this.currentMap.ground[y][x];
-              const world = this.gridToWorld(x + 0.5, y + 0.5);
-              this.drawGroundTile(world.x, world.y, kind, x, y);
-            }
-          }
-
-          this.drawAllWalls();
-        }
-
-        drawAllWalls() {
-          for (let y = 0; y < MAP_H + 1; y++) {
-            for (let x = 0; x < MAP_W; x++) {
-              if (this.currentMap.hWalls[y][x]) {
-                this.drawWallSegment(x, y, x + 1, y, x + y + 0.45);
-              }
-            }
-          }
-
-          for (let y = 0; y < MAP_H; y++) {
-            for (let x = 0; x < MAP_W + 1; x++) {
-              if (this.currentMap.vWalls[y][x]) {
-                this.drawWallSegment(x, y, x, y + 1, x + y + 0.45);
-              }
-            }
-          }
-        }
-
-        drawGroundTile(worldX, worldY, kind, tileX, tileY) {
-          const g = this.rememberWorldObject(
-            this.add.graphics({ x: worldX, y: worldY })
-          );
-
-          let color = 0x4f7f3a;
-          if (kind === TileKind.Road) color = 0x575757;
-          if (kind === TileKind.Floor) color = 0x8b785c;
-
-          g.fillStyle(color, 1);
-          g.lineStyle(1, 0x1e1e1e, 0.25);
-
-          g.beginPath();
-          g.moveTo(0, -TILE_H / 2);
-          g.lineTo(TILE_W / 2, 0);
-          g.lineTo(0, TILE_H / 2);
-          g.lineTo(-TILE_W / 2, 0);
-          g.closePath();
-          g.fillPath();
-          g.strokePath();
-
-          g.setDepth(tileX + tileY);
-        }
-
-        drawWallSegment(x1, y1, x2, y2, depth) {
-          const p1 = this.gridToWorld(x1, y1);
-          const p2 = this.gridToWorld(x2, y2);
-          const h = 34;
-
-          const g = this.rememberWorldObject(this.add.graphics());
-
-          g.fillStyle(0x5d5247, 1);
-          g.lineStyle(2, 0x241f1a, 0.75);
-
-          g.beginPath();
-          g.moveTo(p1.x, p1.y);
-          g.lineTo(p2.x, p2.y);
-          g.lineTo(p2.x, p2.y - h);
-          g.lineTo(p1.x, p1.y - h);
-          g.closePath();
-          g.fillPath();
-          g.strokePath();
-
-          g.lineStyle(3, 0x87796b, 0.95);
-          g.lineBetween(p1.x, p1.y - h, p2.x, p2.y - h);
-
-          g.setDepth(depth);
         }
 
         createPlayer() {
@@ -495,7 +354,6 @@
           this.playerArrow.setStrokeStyle(2, 0x7a5a00, 1);
 
           this.player.add([shadow, body, head, this.playerArrow]);
-          this.syncPlayerWorldPosition();
         }
 
         createSticks() {
@@ -507,16 +365,6 @@
           this.cameras.main.setBackgroundColor("#151515");
           this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
           this.cameras.main.setZoom(1.2);
-
-          const roughWorldWidth = MAP_W * TILE_W;
-          const roughWorldHeight = MAP_H * TILE_H + 500;
-
-          this.cameras.main.setBounds(
-            MAP_OFFSET_X - roughWorldWidth,
-            0,
-            roughWorldWidth * 2,
-            roughWorldHeight * 2
-          );
         }
 
         updatePlayerFacing() {
@@ -540,15 +388,15 @@
           const gridDir = this.screenDirectionToGridDirection(sx, sy);
           const speed = this.playerSpeed * this.leftStick.strength * dt;
 
-          const nextX = this.playerPos.x + gridDir.x * speed;
-          const nextY = this.playerPos.y + gridDir.y * speed;
+          const nextX = this.playerGlobalX + gridDir.x * speed;
+          const nextY = this.playerGlobalY + gridDir.y * speed;
 
-          if (this.canMoveX(this.playerPos.x, nextX, this.playerPos.y)) {
-            this.playerPos.x = nextX;
+          if (this.canMoveX(this.playerGlobalX, nextX, this.playerGlobalY)) {
+            this.playerGlobalX = nextX;
           }
 
-          if (this.canMoveY(this.playerPos.y, nextY, this.playerPos.x)) {
-            this.playerPos.y = nextY;
+          if (this.canMoveY(this.playerGlobalY, nextY, this.playerGlobalX)) {
+            this.playerGlobalY = nextY;
           }
         }
 
@@ -560,21 +408,13 @@
           let gridY = (b - a) / 2;
 
           const len = Math.hypot(gridX, gridY);
-
           if (len <= 0.001) return { x: 0, y: 0 };
 
-          return {
-            x: gridX / len,
-            y: gridY / len,
-          };
+          return { x: gridX / len, y: gridY / len };
         }
 
         canMoveX(currentX, nextX, y) {
           const r = this.playerRadius;
-
-          if (nextX - r < 0) return Boolean(this.currentMap.neighbors.west);
-          if (nextX + r > MAP_W) return Boolean(this.currentMap.neighbors.east);
-
           const sampleYs = [y - r, y, y + r];
 
           if (nextX > currentX) {
@@ -583,7 +423,7 @@
 
             for (let xWall = Math.floor(oldEdge) + 1; xWall <= Math.floor(newEdge); xWall++) {
               for (const sampleY of sampleYs) {
-                if (this.hasVerticalWall(xWall, Math.floor(sampleY))) return false;
+                if (this.hasVerticalWallGlobal(xWall, Math.floor(sampleY))) return false;
               }
             }
           }
@@ -594,7 +434,7 @@
 
             for (let xWall = Math.floor(oldEdge); xWall >= Math.floor(newEdge) + 1; xWall--) {
               for (const sampleY of sampleYs) {
-                if (this.hasVerticalWall(xWall, Math.floor(sampleY))) return false;
+                if (this.hasVerticalWallGlobal(xWall, Math.floor(sampleY))) return false;
               }
             }
           }
@@ -604,10 +444,6 @@
 
         canMoveY(currentY, nextY, x) {
           const r = this.playerRadius;
-
-          if (nextY - r < 0) return Boolean(this.currentMap.neighbors.north);
-          if (nextY + r > MAP_H) return Boolean(this.currentMap.neighbors.south);
-
           const sampleXs = [x - r, x, x + r];
 
           if (nextY > currentY) {
@@ -616,7 +452,7 @@
 
             for (let yWall = Math.floor(oldEdge) + 1; yWall <= Math.floor(newEdge); yWall++) {
               for (const sampleX of sampleXs) {
-                if (this.hasHorizontalWall(yWall, Math.floor(sampleX))) return false;
+                if (this.hasHorizontalWallGlobal(yWall, Math.floor(sampleX))) return false;
               }
             }
           }
@@ -627,7 +463,7 @@
 
             for (let yWall = Math.floor(oldEdge); yWall >= Math.floor(newEdge) + 1; yWall--) {
               for (const sampleX of sampleXs) {
-                if (this.hasHorizontalWall(yWall, Math.floor(sampleX))) return false;
+                if (this.hasHorizontalWallGlobal(yWall, Math.floor(sampleX))) return false;
               }
             }
           }
@@ -635,70 +471,408 @@
           return true;
         }
 
-        hasVerticalWall(xWall, tileY) {
-          if (tileY < 0 || tileY >= MAP_H) return true;
-          if (xWall < 0 || xWall > MAP_W) return true;
-          return this.currentMap.vWalls[tileY][xWall];
+        hasVerticalWallGlobal(globalXWall, globalTileY) {
+          const cy = floorDiv(globalTileY, CHUNK_SIZE);
+          const localY = positiveMod(globalTileY, CHUNK_SIZE);
+
+          const cxRight = floorDiv(globalXWall, CHUNK_SIZE);
+          const localXRight = positiveMod(globalXWall, CHUNK_SIZE);
+          const rightChunk = this.getChunkData(cxRight, cy);
+
+          if (rightChunk.vWalls[localY][localXRight]) return true;
+
+          if (localXRight === 0) {
+            const leftChunk = this.getChunkData(cxRight - 1, cy);
+            if (leftChunk.vWalls[localY][CHUNK_SIZE]) return true;
+          }
+
+          return false;
         }
 
-        hasHorizontalWall(yWall, tileX) {
-          if (tileX < 0 || tileX >= MAP_W) return true;
-          if (yWall < 0 || yWall > MAP_H) return true;
-          return this.currentMap.hWalls[yWall][tileX];
+        hasHorizontalWallGlobal(globalYWall, globalTileX) {
+          const cx = floorDiv(globalTileX, CHUNK_SIZE);
+          const localX = positiveMod(globalTileX, CHUNK_SIZE);
+
+          const cyBottom = floorDiv(globalYWall, CHUNK_SIZE);
+          const localYBottom = positiveMod(globalYWall, CHUNK_SIZE);
+          const bottomChunk = this.getChunkData(cx, cyBottom);
+
+          if (bottomChunk.hWalls[localYBottom][localX]) return true;
+
+          if (localYBottom === 0) {
+            const topChunk = this.getChunkData(cx, cyBottom - 1);
+            if (topChunk.hWalls[CHUNK_SIZE][localX]) return true;
+          }
+
+          return false;
         }
 
-        handleMapTransition() {
-          const edgePadding = 0.02;
+        updateChunkStreamingIfNeeded() {
+          const playerCx = this.getPlayerChunkX();
+          const playerCy = this.getPlayerChunkY();
 
-          if (this.playerPos.x > MAP_W + edgePadding && this.currentMap.neighbors.east) {
-            this.loadMap(this.currentMap.neighbors.east, {
-              x: 0.55,
-              y: Phaser.Math.Clamp(this.playerPos.y, 1, MAP_H - 1),
-            });
-            return;
+          if (playerCx === this.centerChunkX && playerCy === this.centerChunkY) return;
+
+          this.centerChunkX = playerCx;
+          this.centerChunkY = playerCy;
+          this.ensureChunksAroundPlayer();
+        }
+
+        ensureChunksAroundPlayer() {
+          const needed = new Set();
+
+          for (let dy = -LOAD_RADIUS; dy <= LOAD_RADIUS; dy++) {
+            for (let dx = -LOAD_RADIUS; dx <= LOAD_RADIUS; dx++) {
+              const cx = this.centerChunkX + dx;
+              const cy = this.centerChunkY + dy;
+              const key = chunkKey(cx, cy);
+              needed.add(key);
+
+              this.getChunkData(cx, cy);
+
+              if (!this.renderedChunks.has(key)) {
+                this.renderChunk(cx, cy);
+              }
+            }
           }
 
-          if (this.playerPos.x < -edgePadding && this.currentMap.neighbors.west) {
-            this.loadMap(this.currentMap.neighbors.west, {
-              x: MAP_W - 0.55,
-              y: Phaser.Math.Clamp(this.playerPos.y, 1, MAP_H - 1),
-            });
-            return;
+          for (const [key, rendered] of this.renderedChunks.entries()) {
+            if (needed.has(key)) continue;
+
+            for (const obj of rendered.objects) obj.destroy();
+            this.renderedChunks.delete(key);
+          }
+        }
+
+        getChunkData(cx, cy) {
+          const key = chunkKey(cx, cy);
+
+          if (!this.chunkData.has(key)) {
+            this.chunkData.set(key, this.generateChunk(cx, cy));
           }
 
-          if (this.playerPos.y > MAP_H + edgePadding && this.currentMap.neighbors.south) {
-            this.loadMap(this.currentMap.neighbors.south, {
-              x: Phaser.Math.Clamp(this.playerPos.x, 1, MAP_W - 1),
-              y: 0.55,
-            });
-            return;
+          return this.chunkData.get(key);
+        }
+
+        generateChunk(cx, cy) {
+          const ground = [];
+          const hWalls = [];
+          const vWalls = [];
+
+          for (let y = 0; y < CHUNK_SIZE; y++) {
+            const row = [];
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+              row.push(TileKind.Grass);
+            }
+            ground.push(row);
           }
 
-          if (this.playerPos.y < -edgePadding && this.currentMap.neighbors.north) {
-            this.loadMap(this.currentMap.neighbors.north, {
-              x: Phaser.Math.Clamp(this.playerPos.x, 1, MAP_W - 1),
-              y: MAP_H - 0.55,
-            });
+          for (let y = 0; y < CHUNK_SIZE + 1; y++) {
+            const row = [];
+            for (let x = 0; x < CHUNK_SIZE; x++) row.push(false);
+            hWalls.push(row);
           }
+
+          for (let y = 0; y < CHUNK_SIZE; y++) {
+            const row = [];
+            for (let x = 0; x < CHUNK_SIZE + 1; x++) row.push(false);
+            vWalls.push(row);
+          }
+
+          const chunk = { cx, cy, ground, hWalls, vWalls };
+
+          this.paintProceduralRoads(chunk);
+          this.paintProceduralDirtPatches(chunk);
+          this.addProceduralBuildings(chunk);
+
+          return chunk;
+        }
+
+        paintProceduralRoads(chunk) {
+          for (let y = 0; y < CHUNK_SIZE; y++) {
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+              const gx = chunk.cx * CHUNK_SIZE + x;
+              const gy = chunk.cy * CHUNK_SIZE + y;
+
+              const mx = positiveMod(gx, 64);
+              const my = positiveMod(gy, 64);
+
+              const mainVerticalRoad = mx >= 14 && mx <= 17;
+              const mainHorizontalRoad = my >= 14 && my <= 17;
+
+              const smallLaneA = positiveMod(gy + 24, 96) >= 48 && positiveMod(gy + 24, 96) <= 49 && mx > 20 && mx < 56;
+              const smallLaneB = positiveMod(gx + 11, 96) >= 48 && positiveMod(gx + 11, 96) <= 49 && my > 20 && my < 56;
+
+              if (mainVerticalRoad || mainHorizontalRoad || smallLaneA || smallLaneB) {
+                chunk.ground[y][x] = TileKind.Road;
+              }
+            }
+          }
+        }
+
+        paintProceduralDirtPatches(chunk) {
+          const rng = mulberry32(hashInt(chunk.cx + 913, chunk.cy - 421));
+
+          for (let i = 0; i < 3; i++) {
+            const px = 2 + Math.floor(rng() * 24);
+            const py = 2 + Math.floor(rng() * 24);
+            const w = 3 + Math.floor(rng() * 5);
+            const h = 2 + Math.floor(rng() * 4);
+
+            for (let y = py; y < py + h && y < CHUNK_SIZE; y++) {
+              for (let x = px; x < px + w && x < CHUNK_SIZE; x++) {
+                if (chunk.ground[y][x] === TileKind.Grass) {
+                  chunk.ground[y][x] = TileKind.Dirt;
+                }
+              }
+            }
+          }
+        }
+
+        addProceduralBuildings(chunk) {
+          // Несколько узнаваемых зданий рядом со стартом, чтобы было что проверять.
+          if (chunk.cx === 0 && chunk.cy === 0) {
+            this.addBuildingIfClear(chunk, 4, 5, 8, 6, "south", 3);
+            this.addBuildingIfClear(chunk, 21, 20, 7, 7, "north", 3);
+          }
+
+          if (chunk.cx === 1 && chunk.cy === 0) {
+            this.addBuildingIfClear(chunk, 18, 5, 10, 8, "south", 4);
+            this.addBuildingIfClear(chunk, 4, 20, 7, 7, "north", 3);
+          }
+
+          if (chunk.cx === 0 && chunk.cy === 1) {
+            this.addBuildingIfClear(chunk, 5, 18, 9, 7, "east", 3);
+            this.addBuildingIfClear(chunk, 20, 4, 8, 6, "south", 4);
+          }
+
+          if (chunk.cx === 1 && chunk.cy === 1) {
+            this.addBuildingIfClear(chunk, 5, 5, 11, 8, "south", 5);
+            this.addBuildingIfClear(chunk, 21, 18, 7, 7, "west", 3);
+          }
+
+          // Лёгкая процедурная застройка дальше от старта.
+          const rng = mulberry32(hashInt(chunk.cx, chunk.cy));
+          const count = 1 + Math.floor(rng() * 3);
+
+          for (let i = 0; i < count; i++) {
+            const w = 6 + Math.floor(rng() * 5);
+            const h = 5 + Math.floor(rng() * 4);
+
+            let placed = false;
+            for (let attempt = 0; attempt < 8 && !placed; attempt++) {
+              const x = 2 + Math.floor(rng() * (CHUNK_SIZE - w - 4));
+              const y = 2 + Math.floor(rng() * (CHUNK_SIZE - h - 4));
+
+              const sideRoll = Math.floor(rng() * 4);
+              const side = ["north", "south", "west", "east"][sideRoll];
+              const doorOffset = side === "north" || side === "south"
+                ? 1 + Math.floor(rng() * (w - 2))
+                : 1 + Math.floor(rng() * (h - 2));
+
+              placed = this.addBuildingIfClear(chunk, x, y, w, h, side, doorOffset);
+            }
+          }
+        }
+
+        addBuildingIfClear(chunk, startX, startY, width, height, doorSide, doorOffset) {
+          if (startX < 1 || startY < 1) return false;
+          if (startX + width >= CHUNK_SIZE - 1) return false;
+          if (startY + height >= CHUNK_SIZE - 1) return false;
+
+          for (let y = startY - 1; y < startY + height + 1; y++) {
+            for (let x = startX - 1; x < startX + width + 1; x++) {
+              if (chunk.ground[y][x] === TileKind.Road) return false;
+              if (chunk.ground[y][x] === TileKind.Floor) return false;
+            }
+          }
+
+          for (let y = startY; y < startY + height; y++) {
+            for (let x = startX; x < startX + width; x++) {
+              chunk.ground[y][x] = TileKind.Floor;
+            }
+          }
+
+          for (let x = startX; x < startX + width; x++) {
+            const topIsDoor = doorSide === "north" && x === startX + doorOffset;
+            const bottomIsDoor = doorSide === "south" && x === startX + doorOffset;
+
+            if (!topIsDoor) this.setHWall(chunk, x, startY, true);
+            if (!bottomIsDoor) this.setHWall(chunk, x, startY + height, true);
+          }
+
+          for (let y = startY; y < startY + height; y++) {
+            const leftIsDoor = doorSide === "west" && y === startY + doorOffset;
+            const rightIsDoor = doorSide === "east" && y === startY + doorOffset;
+
+            if (!leftIsDoor) this.setVWall(chunk, startX, y, true);
+            if (!rightIsDoor) this.setVWall(chunk, startX + width, y, true);
+          }
+
+          return true;
+        }
+
+        setHWall(chunk, x, y, value) {
+          if (x < 0 || x >= CHUNK_SIZE || y < 0 || y > CHUNK_SIZE) return;
+          chunk.hWalls[y][x] = value;
+        }
+
+        setVWall(chunk, x, y, value) {
+          if (x < 0 || x > CHUNK_SIZE || y < 0 || y >= CHUNK_SIZE) return;
+          chunk.vWalls[y][x] = value;
+        }
+
+        renderChunk(cx, cy) {
+          const chunk = this.getChunkData(cx, cy);
+          const objects = [];
+
+          const groundG = this.add.graphics();
+          groundG.setDepth(-100000);
+          objects.push(groundG);
+
+          this.drawChunkGround(chunk, groundG);
+          this.drawChunkBorder(chunk, groundG);
+          this.drawChunkWalls(chunk, objects);
+
+          const label = this.add
+            .text(0, 0, `${cx},${cy}`, {
+              fontFamily: "Arial",
+              fontSize: "14px",
+              color: "#ffffff88",
+              backgroundColor: "#00000044",
+              padding: { x: 4, y: 2 },
+            })
+            .setDepth(99990);
+
+          const center = this.gridToWorld(cx * CHUNK_SIZE + 16, cy * CHUNK_SIZE + 16);
+          label.setPosition(center.x - 18, center.y - 10);
+          objects.push(label);
+
+          this.renderedChunks.set(chunkKey(cx, cy), { objects });
+        }
+
+        drawChunkGround(chunk, g) {
+          for (let y = 0; y < CHUNK_SIZE; y++) {
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+              const gx = chunk.cx * CHUNK_SIZE + x;
+              const gy = chunk.cy * CHUNK_SIZE + y;
+              const kind = chunk.ground[y][x];
+              const world = this.gridToWorld(gx + 0.5, gy + 0.5);
+
+              let color = 0x4f7f3a;
+              if (kind === TileKind.Road) color = 0x575757;
+              if (kind === TileKind.Floor) color = 0x8b785c;
+              if (kind === TileKind.Dirt) color = 0x6d5b3b;
+
+              g.fillStyle(color, 1);
+              g.lineStyle(1, 0x1e1e1e, 0.18);
+
+              g.beginPath();
+              g.moveTo(world.x, world.y - TILE_H / 2);
+              g.lineTo(world.x + TILE_W / 2, world.y);
+              g.lineTo(world.x, world.y + TILE_H / 2);
+              g.lineTo(world.x - TILE_W / 2, world.y);
+              g.closePath();
+              g.fillPath();
+              g.strokePath();
+            }
+          }
+        }
+
+        drawChunkBorder(chunk, g) {
+          const sx = chunk.cx * CHUNK_SIZE;
+          const sy = chunk.cy * CHUNK_SIZE;
+
+          const p1 = this.gridToWorld(sx, sy);
+          const p2 = this.gridToWorld(sx + CHUNK_SIZE, sy);
+          const p3 = this.gridToWorld(sx + CHUNK_SIZE, sy + CHUNK_SIZE);
+          const p4 = this.gridToWorld(sx, sy + CHUNK_SIZE);
+
+          g.lineStyle(3, 0xffffff, 0.15);
+          g.lineBetween(p1.x, p1.y, p2.x, p2.y);
+          g.lineBetween(p2.x, p2.y, p3.x, p3.y);
+          g.lineBetween(p3.x, p3.y, p4.x, p4.y);
+          g.lineBetween(p4.x, p4.y, p1.x, p1.y);
+        }
+
+        drawChunkWalls(chunk, objects) {
+          for (let y = 0; y < CHUNK_SIZE + 1; y++) {
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+              if (!chunk.hWalls[y][x]) continue;
+
+              const gx = chunk.cx * CHUNK_SIZE + x;
+              const gy = chunk.cy * CHUNK_SIZE + y;
+              objects.push(this.drawWallSegment(gx, gy, gx + 1, gy));
+            }
+          }
+
+          for (let y = 0; y < CHUNK_SIZE; y++) {
+            for (let x = 0; x < CHUNK_SIZE + 1; x++) {
+              if (!chunk.vWalls[y][x]) continue;
+
+              const gx = chunk.cx * CHUNK_SIZE + x;
+              const gy = chunk.cy * CHUNK_SIZE + y;
+              objects.push(this.drawWallSegment(gx, gy, gx, gy + 1));
+            }
+          }
+        }
+
+        drawWallSegment(x1, y1, x2, y2) {
+          const p1 = this.gridToWorld(x1, y1);
+          const p2 = this.gridToWorld(x2, y2);
+          const h = 34;
+
+          const g = this.add.graphics();
+
+          g.fillStyle(0x5d5247, 1);
+          g.lineStyle(2, 0x241f1a, 0.75);
+
+          g.beginPath();
+          g.moveTo(p1.x, p1.y);
+          g.lineTo(p2.x, p2.y);
+          g.lineTo(p2.x, p2.y - h);
+          g.lineTo(p1.x, p1.y - h);
+          g.closePath();
+          g.fillPath();
+          g.strokePath();
+
+          g.lineStyle(3, 0x87796b, 0.95);
+          g.lineBetween(p1.x, p1.y - h, p2.x, p2.y - h);
+
+          const depth = (x1 + x2 + y1 + y2) / 2 + 0.45;
+          g.setDepth(depth);
+
+          return g;
         }
 
         syncPlayerWorldPosition() {
           if (!this.player) return;
 
-          const world = this.gridToWorld(this.playerPos.x, this.playerPos.y);
+          const world = this.gridToWorld(this.playerGlobalX, this.playerGlobalY);
 
           this.player.setPosition(world.x, world.y - 8);
-          this.player.setDepth(this.playerPos.x + this.playerPos.y + 0.7);
+          this.player.setDepth(this.playerGlobalX + this.playerGlobalY + 0.7);
         }
 
-        isInsideMap(x, y) {
-          return x >= 0 && y >= 0 && x < MAP_W && y < MAP_H;
+        getPlayerChunkX() {
+          return floorDiv(this.playerGlobalX, CHUNK_SIZE);
+        }
+
+        getPlayerChunkY() {
+          return floorDiv(this.playerGlobalY, CHUNK_SIZE);
+        }
+
+        globalToLocal(globalX, globalY) {
+          return {
+            x: positiveMod(globalX, CHUNK_SIZE),
+            y: positiveMod(globalY, CHUNK_SIZE),
+          };
         }
 
         gridToWorld(gridX, gridY) {
           return {
-            x: MAP_OFFSET_X + (gridX - gridY) * (TILE_W / 2),
-            y: MAP_OFFSET_Y + (gridX + gridY) * (TILE_H / 2),
+            x: WORLD_OFFSET_X + (gridX - gridY) * (TILE_W / 2),
+            y: WORLD_OFFSET_Y + (gridX + gridY) * (TILE_H / 2),
           };
         }
       }
@@ -720,4 +894,3 @@
     </script>
   </body>
 </html>
-<!-- redeploy -->
