@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
-    <title>Zombie Iso Prototype v0.4 Telegram Playability</title>
+    <title>Zombie Iso Prototype v0.4.1 Telegram UI</title>
 
     <style>
       html,
@@ -56,17 +56,17 @@
         Dirt: 3,
       };
 
-      const UI_STORAGE_KEY = "zombie_iso_ui_v04";
+      const UI_STORAGE_KEY = "zombie_iso_ui_v041";
 
       const DEFAULT_UI_SETTINGS = {
         // stickXFactor: больше значение = стики ближе к центру.
-        stickXFactor: 0.2,
+        stickXFactor: 0.24,
         // stickYFactor: больше значение = стики выше от нижнего края.
-        stickYFactor: 0.24,
-        stickRadius: 56,
-        stickOpacity: 1,
-        debugVisible: true,
-        playMode: false,
+        stickYFactor: 0.3,
+        stickRadius: 58,
+        stickOpacity: 0.9,
+        debugVisible: false,
+        playMode: true,
       };
 
       function clamp(value, min, max) {
@@ -364,9 +364,14 @@
           this.updateInfoText();
         }
 
+        getTopSafeY() {
+          // В Telegram сверху есть панель закрытия/меню. Держим наши кнопки ниже.
+          return IS_TELEGRAM ? 78 : 12;
+        }
+
         createUi() {
           this.infoText = this.add
-            .text(12, 12, "", {
+            .text(12, this.getTopSafeY() + 50, "", {
               fontFamily: "Arial",
               fontSize: "14px",
               color: "#ffffff",
@@ -377,7 +382,7 @@
             .setDepth(100001);
 
           this.fpsText = this.add
-            .text(12, 0, "", {
+            .text(12, this.getTopSafeY() + 150, "", {
               fontFamily: "Arial",
               fontSize: "14px",
               color: "#d6ffd6",
@@ -387,28 +392,10 @@
             .setScrollFactor(0)
             .setDepth(100001);
 
-          this.resetButton = this.makeUiButton("RESET", this.scale.width - 86, 12, () => {
-            this.resetPlayer();
-          }, "#8b1e1ecc");
-
-          this.uiButton = this.makeUiButton("UI", this.scale.width - 154, 12, () => {
+          // Единственная постоянная кнопка интерфейса. Всё остальное внутри меню.
+          this.uiButton = this.makeUiButton("⚙", this.scale.width - 64, this.getTopSafeY(), () => {
             this.toggleUiPanel();
-          }, "#244c88cc");
-
-          this.debugButton = this.makeUiButton("DEBUG", this.scale.width - 248, 12, () => {
-            this.debugVisible = !this.debugVisible;
-            this.uiSettings.debugVisible = this.debugVisible;
-            saveUiSettings(this.uiSettings);
-            this.applyUiVisibility();
-          }, "#3d3d3dcc");
-
-          this.playButton = this.makeUiButton("PLAY", this.scale.width - 342, 12, () => {
-            this.playMode = !this.playMode;
-            this.uiSettings.playMode = this.playMode;
-            if (this.playMode) this.uiPanelOpen = false;
-            saveUiSettings(this.uiSettings);
-            this.applyUiVisibility();
-          }, "#2e6b2ecc");
+          }, "#244c88dd");
 
           this.createUiPanel();
           this.applyUiVisibility();
@@ -424,10 +411,10 @@
           const button = this.add
             .text(x, y, label, {
               fontFamily: "Arial",
-              fontSize: "14px",
+              fontSize: label === "⚙" ? "22px" : "14px",
               color: "#ffffff",
               backgroundColor: color,
-              padding: { x: 10, y: 8 },
+              padding: { x: label === "⚙" ? 13 : 10, y: label === "⚙" ? 9 : 8 },
             })
             .setScrollFactor(0)
             .setDepth(100002)
@@ -442,23 +429,30 @@
         }
 
         createUiPanel() {
-          this.uiPanel = this.add.container(12, 92);
+          this.uiPanel = this.add.container(24, this.getTopSafeY() + 52);
           this.uiPanel.setScrollFactor(0);
           this.uiPanel.setDepth(100003);
 
-          const bg = this.add.rectangle(0, 0, 300, 252, 0x000000, 0.78)
+          const bg = this.add.rectangle(0, 0, 342, 326, 0x000000, 0.82)
             .setOrigin(0, 0)
             .setStrokeStyle(2, 0xffffff, 0.25);
           this.uiPanel.add(bg);
 
-          const title = this.add.text(12, 10, "Настройка управления", {
+          const title = this.add.text(12, 10, "Настройки", {
             fontFamily: "Arial",
-            fontSize: "15px",
+            fontSize: "16px",
             color: "#ffffff",
           });
           this.uiPanel.add(title);
 
-          const addPanelButton = (label, x, y, callback) => {
+          const hint = this.add.text(12, 30, "Здесь всё служебное, на экране остаётся только ⚙", {
+            fontFamily: "Arial",
+            fontSize: "11px",
+            color: "#cccccc",
+          });
+          this.uiPanel.add(hint);
+
+          const addPanelButton = (label, x, y, callback, w) => {
             const b = this.add
               .text(x, y, label, {
                 fontFamily: "Arial",
@@ -466,6 +460,7 @@
                 color: "#ffffff",
                 backgroundColor: "#333333dd",
                 padding: { x: 9, y: 7 },
+                fixedWidth: w || 0,
               })
               .setInteractive({ useHandCursor: true });
 
@@ -478,32 +473,46 @@
             return b;
           };
 
-          addPanelButton("стики ↑", 12, 42, () => this.changeStickSetting("stickYFactor", 0.025, 0.16, 0.42));
-          addPanelButton("стики ↓", 112, 42, () => this.changeStickSetting("stickYFactor", -0.025, 0.16, 0.42));
+          this.panelDebugButton = addPanelButton("Debug: выкл", 12, 56, () => this.toggleDebugVisible(), 130);
+          addPanelButton("сдвиг 1 тайл", 158, 56, () => {
+            this.nudgePlayerToNeighborTile();
+            this.toggleUiPanel(false);
+          }, 150);
 
-          addPanelButton("к центру +", 12, 82, () => this.changeStickSetting("stickXFactor", 0.025, 0.13, 0.36));
-          addPanelButton("к краям -", 128, 82, () => this.changeStickSetting("stickXFactor", -0.025, 0.13, 0.36));
+          addPanelButton("стики ↑", 12, 98, () => this.changeStickSetting("stickYFactor", 0.025, 0.16, 0.46), 96);
+          addPanelButton("стики ↓", 122, 98, () => this.changeStickSetting("stickYFactor", -0.025, 0.16, 0.46), 96);
 
-          addPanelButton("размер +", 12, 122, () => this.changeStickSetting("stickRadius", 4, 40, 90));
-          addPanelButton("размер -", 112, 122, () => this.changeStickSetting("stickRadius", -4, 40, 90));
+          addPanelButton("к центру +", 12, 140, () => this.changeStickSetting("stickXFactor", 0.025, 0.13, 0.38), 110);
+          addPanelButton("к краям -", 136, 140, () => this.changeStickSetting("stickXFactor", -0.025, 0.13, 0.38), 110);
 
-          addPanelButton("ярче", 12, 162, () => this.changeStickSetting("stickOpacity", 0.1, 0.25, 1));
-          addPanelButton("бледнее", 86, 162, () => this.changeStickSetting("stickOpacity", -0.1, 0.25, 1));
+          addPanelButton("размер +", 12, 182, () => this.changeStickSetting("stickRadius", 4, 40, 90), 96);
+          addPanelButton("размер -", 122, 182, () => this.changeStickSetting("stickRadius", -4, 40, 90), 96);
 
-          addPanelButton("сброс UI", 12, 202, () => this.resetUiSettings());
-          addPanelButton("закрыть", 126, 202, () => this.toggleUiPanel(false));
+          addPanelButton("ярче", 12, 224, () => this.changeStickSetting("stickOpacity", 0.1, 0.25, 1), 82);
+          addPanelButton("бледнее", 108, 224, () => this.changeStickSetting("stickOpacity", -0.1, 0.25, 1), 96);
+
+          addPanelButton("сброс UI", 12, 274, () => this.resetUiSettings(), 100);
+          addPanelButton("закрыть", 126, 274, () => this.toggleUiPanel(false), 100);
         }
 
         layoutUi() {
-          if (this.resetButton) this.resetButton.setPosition(this.scale.width - 86, 12);
-          if (this.uiButton) this.uiButton.setPosition(this.scale.width - 154, 12);
-          if (this.debugButton) this.debugButton.setPosition(this.scale.width - 248, 12);
-          if (this.playButton) this.playButton.setPosition(this.scale.width - 342, 12);
-          if (this.fpsText) this.fpsText.setPosition(12, this.infoText && this.infoText.visible ? this.infoText.y + this.infoText.height + 8 : 12);
+          const top = this.getTopSafeY();
+
+          if (this.uiButton) this.uiButton.setPosition(this.scale.width - 64, top);
+          if (this.uiPanel) this.uiPanel.setPosition(24, top + 52);
+          if (this.infoText) this.infoText.setPosition(12, top + 50);
+          if (this.fpsText) this.fpsText.setPosition(12, this.infoText && this.infoText.visible ? this.infoText.y + this.infoText.height + 8 : top + 50);
         }
 
         toggleUiPanel(forceValue) {
           this.uiPanelOpen = typeof forceValue === "boolean" ? forceValue : !this.uiPanelOpen;
+          this.applyUiVisibility();
+        }
+
+        toggleDebugVisible() {
+          this.debugVisible = !this.debugVisible;
+          this.uiSettings.debugVisible = this.debugVisible;
+          saveUiSettings(this.uiSettings);
           this.applyUiVisibility();
         }
 
@@ -517,34 +526,29 @@
 
         resetUiSettings() {
           const keepDebug = this.debugVisible;
-          const keepPlay = this.playMode;
-          this.uiSettings = { ...DEFAULT_UI_SETTINGS, debugVisible: keepDebug, playMode: keepPlay };
+          this.uiSettings = { ...DEFAULT_UI_SETTINGS, debugVisible: keepDebug, playMode: true };
           saveUiSettings(this.uiSettings);
 
           if (this.leftStick) this.leftStick.refreshFromSettings();
           if (this.rightStick) this.rightStick.refreshFromSettings();
+          this.applyUiVisibility();
         }
 
         applyUiVisibility() {
-          const showDebug = this.debugVisible && !this.playMode;
+          const showDebug = this.debugVisible;
 
           if (this.infoText) this.infoText.setVisible(showDebug);
           if (this.fpsText) this.fpsText.setVisible(showDebug);
-          if (this.resetButton) this.resetButton.setVisible(!this.playMode);
-          if (this.uiButton) this.uiButton.setVisible(!this.playMode);
-          if (this.debugButton) {
-            this.debugButton.setVisible(!this.playMode);
-            this.debugButton.setText(this.debugVisible ? "DEBUG" : "NO DBG");
-          }
-          if (this.playButton) this.playButton.setText(this.playMode ? "DEV" : "PLAY");
-          if (this.uiPanel) this.uiPanel.setVisible(this.uiPanelOpen && !this.playMode);
+          if (this.uiButton) this.uiButton.setVisible(true);
+          if (this.uiPanel) this.uiPanel.setVisible(this.uiPanelOpen);
+          if (this.panelDebugButton) this.panelDebugButton.setText(this.debugVisible ? "Debug: вкл" : "Debug: выкл");
 
           this.applyChunkDebugVisibility();
           this.layoutUi();
         }
 
         applyChunkDebugVisibility() {
-          const visible = this.debugVisible && !this.playMode;
+          const visible = this.debugVisible;
           for (const rendered of this.renderedChunks.values()) {
             if (!rendered.debugObjects) continue;
             for (const obj of rendered.debugObjects) obj.setVisible(visible);
@@ -569,30 +573,57 @@
           );
 
           this.infoText.setText(
-            `v0.4 Telegram playability\n` +
-              `Загружено чанков: ${this.renderedChunks.size}\n` +
-              `Центр: ${this.centerChunkX}, ${this.centerChunkY}\n` +
-              `Игрок в чанке: ${cx}, ${cy}\n` +
-              `Локально: ${local.x.toFixed(1)} / ${local.y.toFixed(1)}\n` +
+            `v0.4.1 Telegram UI\n` +
+              `Чанков: ${this.renderedChunks.size} | центр: ${this.centerChunkX}, ${this.centerChunkY}\n` +
+              `Игрок: чанк ${cx},${cy} | локально ${local.x.toFixed(1)} / ${local.y.toFixed(1)}\n` +
               `Глобально: ${this.playerGlobalX.toFixed(1)} / ${this.playerGlobalY.toFixed(1)}`
           );
 
           if (this.fpsText) {
             this.fpsText.setText(
-              `FPS: ${Math.round(this.fpsValue)} | objects: ${objectCount} | UI: ${Math.round(this.uiSettings.stickXFactor * 100)}/${Math.round(this.uiSettings.stickYFactor * 100)}`
+              `FPS: ${Math.round(this.fpsValue)} | objects: ${objectCount}`
             );
           }
 
           this.layoutUi();
         }
 
-        resetPlayer() {
-          this.playerGlobalX = 15.5;
-          this.playerGlobalY = 18.5;
-          this.centerChunkX = this.getPlayerChunkX();
-          this.centerChunkY = this.getPlayerChunkY();
-          this.ensureChunksAroundPlayer();
-          this.syncPlayerWorldPosition();
+        nudgePlayerToNeighborTile() {
+          const screenX = Math.cos(this.facingAngle);
+          const screenY = Math.sin(this.facingAngle);
+          const gridDir = this.screenDirectionToGridDirection(screenX, screenY);
+
+          let primary = [1, 0];
+          if (Math.abs(gridDir.x) > Math.abs(gridDir.y)) {
+            primary = [Math.sign(gridDir.x) || 1, 0];
+          } else {
+            primary = [0, Math.sign(gridDir.y) || 1];
+          }
+
+          const dirs = [
+            primary,
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ];
+
+          const baseX = Math.floor(this.playerGlobalX);
+          const baseY = Math.floor(this.playerGlobalY);
+
+          for (const [dx, dy] of dirs) {
+            const targetX = baseX + dx + 0.5;
+            const targetY = baseY + dy + 0.5;
+
+            if (this.canMoveX(this.playerGlobalX, targetX, this.playerGlobalY) &&
+                this.canMoveY(this.playerGlobalY, targetY, targetX)) {
+              this.playerGlobalX = targetX;
+              this.playerGlobalY = targetY;
+              this.updateChunkStreamingIfNeeded();
+              this.syncPlayerWorldPosition();
+              return;
+            }
+          }
         }
 
         createPlayer() {
