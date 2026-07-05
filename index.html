@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
-    <title>Zombie Iso Prototype v0.3</title>
+    <title>Zombie Iso Prototype v0.3.1 Telegram Test</title>
 
     <style>
       html,
@@ -32,6 +32,7 @@
       }
     </style>
 
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
   </head>
 
@@ -54,6 +55,35 @@
         Floor: 2,
         Dirt: 3,
       };
+
+      const IS_TELEGRAM =
+        Boolean(window.Telegram) && Boolean(window.Telegram.WebApp);
+
+      function initTelegramMiniApp() {
+        if (!IS_TELEGRAM) return;
+
+        const tg = window.Telegram.WebApp;
+
+        try {
+          tg.ready();
+          tg.expand();
+
+          if (tg.setHeaderColor) tg.setHeaderColor("#111111");
+          if (tg.setBackgroundColor) tg.setBackgroundColor("#111111");
+          if (tg.setBottomBarColor) tg.setBottomBarColor("#111111");
+
+          // В игре вертикальные свайпы могут конфликтовать со стиками.
+          if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+
+          // В новых клиентах Telegram Mini Apps поддерживают fullscreen.
+          // Если метод недоступен, просто играем в обычном окне.
+          if (tg.requestFullscreen) tg.requestFullscreen();
+        } catch (error) {
+          console.log("Telegram init skipped:", error);
+        }
+      }
+
+      initTelegramMiniApp();
 
       function floorDiv(value, size) {
         return Math.floor(value / size);
@@ -127,8 +157,11 @@
           const w = this.scene.scale.width;
           const h = this.scene.scale.height;
 
-          const marginX = Math.max(82, w * 0.11);
-          const marginY = Math.max(82, h * 0.16);
+          // v0.3.1: стики чуть выше и ближе к центру.
+          // marginX = расстояние от края экрана: больше значение = ближе к центру.
+          // marginY = расстояние от нижнего края: больше значение = выше.
+          const marginX = Math.max(112, w * 0.2);
+          const marginY = Math.max(120, h * 0.24);
 
           this.centerY = h - marginY;
           this.centerX = this.side === "left" ? marginX : w - marginX;
@@ -310,7 +343,7 @@
           const local = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
 
           this.infoText.setText(
-            `v0.3 streaming chunks\n` +
+            `v0.3.1 Telegram test\n` +
               `Загружено: 3×3 чанка\n` +
               `Центр: ${this.centerChunkX}, ${this.centerChunkY}\n` +
               `Игрок в чанке: ${cx}, ${cy}\n` +
