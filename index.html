@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
-    <title>Zombie Iso Prototype v0.3.1 Telegram Test</title>
+    <title>Zombie Iso Prototype v0.4 Telegram Playability</title>
 
     <style>
       html,
@@ -55,6 +55,41 @@
         Floor: 2,
         Dirt: 3,
       };
+
+      const UI_STORAGE_KEY = "zombie_iso_ui_v04";
+
+      const DEFAULT_UI_SETTINGS = {
+        // stickXFactor: больше значение = стики ближе к центру.
+        stickXFactor: 0.2,
+        // stickYFactor: больше значение = стики выше от нижнего края.
+        stickYFactor: 0.24,
+        stickRadius: 56,
+        stickOpacity: 1,
+        debugVisible: true,
+        playMode: false,
+      };
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function loadUiSettings() {
+        try {
+          const raw = localStorage.getItem(UI_STORAGE_KEY);
+          if (!raw) return { ...DEFAULT_UI_SETTINGS };
+          return { ...DEFAULT_UI_SETTINGS, ...JSON.parse(raw) };
+        } catch (error) {
+          return { ...DEFAULT_UI_SETTINGS };
+        }
+      }
+
+      function saveUiSettings(settings) {
+        try {
+          localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(settings));
+        } catch (error) {
+          console.log("UI settings save skipped:", error);
+        }
+      }
 
       const IS_TELEGRAM =
         Boolean(window.Telegram) && Boolean(window.Telegram.WebApp);
@@ -132,6 +167,8 @@
           this.radius = 56;
           this.knobRadius = 22;
           this.activePointerId = null;
+          this.settings = scene.uiSettings || DEFAULT_UI_SETTINGS;
+          this.applySettingsValues();
 
           this.graphics = scene.add.graphics();
           this.graphics.setScrollFactor(0);
@@ -148,6 +185,18 @@
           this.draw();
         }
 
+        applySettingsValues() {
+          this.settings = this.scene.uiSettings || DEFAULT_UI_SETTINGS;
+          this.radius = clamp(this.settings.stickRadius, 40, 90);
+          this.knobRadius = Math.max(16, Math.round(this.radius * 0.39));
+        }
+
+        refreshFromSettings() {
+          this.applySettingsValues();
+          this.layout();
+          this.reset();
+        }
+
         onResize() {
           this.layout();
           this.reset();
@@ -157,11 +206,10 @@
           const w = this.scene.scale.width;
           const h = this.scene.scale.height;
 
-          // v0.3.1: стики чуть выше и ближе к центру.
           // marginX = расстояние от края экрана: больше значение = ближе к центру.
           // marginY = расстояние от нижнего края: больше значение = выше.
-          const marginX = Math.max(112, w * 0.2);
-          const marginY = Math.max(120, h * 0.24);
+          const marginX = clamp(w * this.settings.stickXFactor, 82, w * 0.38);
+          const marginY = clamp(h * this.settings.stickYFactor, 92, h * 0.46);
 
           this.centerY = h - marginY;
           this.centerX = this.side === "left" ? marginX : w - marginX;
@@ -237,15 +285,17 @@
           const knobX = this.centerX + this.valueX * this.radius;
           const knobY = this.centerY + this.valueY * this.radius;
 
-          g.lineStyle(3, 0xffffff, 0.35);
-          g.fillStyle(0xffffff, 0.1);
+          const opacity = clamp(this.settings.stickOpacity, 0.25, 1);
+
+          g.lineStyle(3, 0xffffff, 0.35 * opacity);
+          g.fillStyle(0xffffff, 0.1 * opacity);
           g.fillCircle(this.centerX, this.centerY, this.radius);
           g.strokeCircle(this.centerX, this.centerY, this.radius);
 
-          g.fillStyle(0xffffff, 0.28);
+          g.fillStyle(0xffffff, 0.28 * opacity);
           g.fillCircle(knobX, knobY, this.knobRadius);
 
-          g.lineStyle(2, 0xffffff, 0.22);
+          g.lineStyle(2, 0xffffff, 0.22 * opacity);
           g.lineBetween(this.centerX, this.centerY, knobX, knobY);
         }
       }
@@ -271,8 +321,21 @@
           this.rightStick = null;
           this.facingAngle = 0;
 
+          this.uiSettings = loadUiSettings();
+          this.debugVisible = Boolean(this.uiSettings.debugVisible);
+          this.playMode = Boolean(this.uiSettings.playMode);
+
           this.infoText = null;
+          this.fpsText = null;
           this.resetButton = null;
+          this.uiButton = null;
+          this.debugButton = null;
+          this.playButton = null;
+          this.uiPanel = null;
+          this.uiPanelOpen = false;
+
+          this.fpsValue = 0;
+          this.fpsUpdateTimer = 0;
         }
 
         create() {
@@ -297,6 +360,7 @@
           this.updatePlayerMovement(dt);
           this.updateChunkStreamingIfNeeded();
           this.syncPlayerWorldPosition();
+          this.updateFps(deltaMs);
           this.updateInfoText();
         }
 
@@ -304,7 +368,7 @@
           this.infoText = this.add
             .text(12, 12, "", {
               fontFamily: "Arial",
-              fontSize: "15px",
+              fontSize: "14px",
               color: "#ffffff",
               backgroundColor: "#00000099",
               padding: { x: 8, y: 6 },
@@ -312,27 +376,185 @@
             .setScrollFactor(0)
             .setDepth(100001);
 
-          this.resetButton = this.add
-            .text(this.scale.width - 86, 12, "RESET", {
+          this.fpsText = this.add
+            .text(12, 0, "", {
               fontFamily: "Arial",
-              fontSize: "15px",
-              color: "#ffffff",
-              backgroundColor: "#8b1e1ecc",
-              padding: { x: 12, y: 8 },
+              fontSize: "14px",
+              color: "#d6ffd6",
+              backgroundColor: "#00000088",
+              padding: { x: 8, y: 5 },
             })
             .setScrollFactor(0)
-            .setDepth(100001)
-            .setInteractive({ useHandCursor: true });
+            .setDepth(100001);
 
-          this.resetButton.on("pointerdown", () => {
+          this.resetButton = this.makeUiButton("RESET", this.scale.width - 86, 12, () => {
             this.resetPlayer();
-          });
+          }, "#8b1e1ecc");
+
+          this.uiButton = this.makeUiButton("UI", this.scale.width - 154, 12, () => {
+            this.toggleUiPanel();
+          }, "#244c88cc");
+
+          this.debugButton = this.makeUiButton("DEBUG", this.scale.width - 248, 12, () => {
+            this.debugVisible = !this.debugVisible;
+            this.uiSettings.debugVisible = this.debugVisible;
+            saveUiSettings(this.uiSettings);
+            this.applyUiVisibility();
+          }, "#3d3d3dcc");
+
+          this.playButton = this.makeUiButton("PLAY", this.scale.width - 342, 12, () => {
+            this.playMode = !this.playMode;
+            this.uiSettings.playMode = this.playMode;
+            if (this.playMode) this.uiPanelOpen = false;
+            saveUiSettings(this.uiSettings);
+            this.applyUiVisibility();
+          }, "#2e6b2ecc");
+
+          this.createUiPanel();
+          this.applyUiVisibility();
 
           this.scale.on("resize", () => {
-            if (this.resetButton) {
-              this.resetButton.setPosition(this.scale.width - 86, 12);
-            }
+            this.layoutUi();
+            if (this.leftStick) this.leftStick.refreshFromSettings();
+            if (this.rightStick) this.rightStick.refreshFromSettings();
           });
+        }
+
+        makeUiButton(label, x, y, callback, color) {
+          const button = this.add
+            .text(x, y, label, {
+              fontFamily: "Arial",
+              fontSize: "14px",
+              color: "#ffffff",
+              backgroundColor: color,
+              padding: { x: 10, y: 8 },
+            })
+            .setScrollFactor(0)
+            .setDepth(100002)
+            .setInteractive({ useHandCursor: true });
+
+          button.on("pointerdown", (pointer) => {
+            pointer.event.stopPropagation();
+            callback();
+          });
+
+          return button;
+        }
+
+        createUiPanel() {
+          this.uiPanel = this.add.container(12, 92);
+          this.uiPanel.setScrollFactor(0);
+          this.uiPanel.setDepth(100003);
+
+          const bg = this.add.rectangle(0, 0, 300, 252, 0x000000, 0.78)
+            .setOrigin(0, 0)
+            .setStrokeStyle(2, 0xffffff, 0.25);
+          this.uiPanel.add(bg);
+
+          const title = this.add.text(12, 10, "Настройка управления", {
+            fontFamily: "Arial",
+            fontSize: "15px",
+            color: "#ffffff",
+          });
+          this.uiPanel.add(title);
+
+          const addPanelButton = (label, x, y, callback) => {
+            const b = this.add
+              .text(x, y, label, {
+                fontFamily: "Arial",
+                fontSize: "14px",
+                color: "#ffffff",
+                backgroundColor: "#333333dd",
+                padding: { x: 9, y: 7 },
+              })
+              .setInteractive({ useHandCursor: true });
+
+            b.on("pointerdown", (pointer) => {
+              pointer.event.stopPropagation();
+              callback();
+            });
+
+            this.uiPanel.add(b);
+            return b;
+          };
+
+          addPanelButton("стики ↑", 12, 42, () => this.changeStickSetting("stickYFactor", 0.025, 0.16, 0.42));
+          addPanelButton("стики ↓", 112, 42, () => this.changeStickSetting("stickYFactor", -0.025, 0.16, 0.42));
+
+          addPanelButton("к центру +", 12, 82, () => this.changeStickSetting("stickXFactor", 0.025, 0.13, 0.36));
+          addPanelButton("к краям -", 128, 82, () => this.changeStickSetting("stickXFactor", -0.025, 0.13, 0.36));
+
+          addPanelButton("размер +", 12, 122, () => this.changeStickSetting("stickRadius", 4, 40, 90));
+          addPanelButton("размер -", 112, 122, () => this.changeStickSetting("stickRadius", -4, 40, 90));
+
+          addPanelButton("ярче", 12, 162, () => this.changeStickSetting("stickOpacity", 0.1, 0.25, 1));
+          addPanelButton("бледнее", 86, 162, () => this.changeStickSetting("stickOpacity", -0.1, 0.25, 1));
+
+          addPanelButton("сброс UI", 12, 202, () => this.resetUiSettings());
+          addPanelButton("закрыть", 126, 202, () => this.toggleUiPanel(false));
+        }
+
+        layoutUi() {
+          if (this.resetButton) this.resetButton.setPosition(this.scale.width - 86, 12);
+          if (this.uiButton) this.uiButton.setPosition(this.scale.width - 154, 12);
+          if (this.debugButton) this.debugButton.setPosition(this.scale.width - 248, 12);
+          if (this.playButton) this.playButton.setPosition(this.scale.width - 342, 12);
+          if (this.fpsText) this.fpsText.setPosition(12, this.infoText && this.infoText.visible ? this.infoText.y + this.infoText.height + 8 : 12);
+        }
+
+        toggleUiPanel(forceValue) {
+          this.uiPanelOpen = typeof forceValue === "boolean" ? forceValue : !this.uiPanelOpen;
+          this.applyUiVisibility();
+        }
+
+        changeStickSetting(key, delta, min, max) {
+          this.uiSettings[key] = clamp(this.uiSettings[key] + delta, min, max);
+          saveUiSettings(this.uiSettings);
+
+          if (this.leftStick) this.leftStick.refreshFromSettings();
+          if (this.rightStick) this.rightStick.refreshFromSettings();
+        }
+
+        resetUiSettings() {
+          const keepDebug = this.debugVisible;
+          const keepPlay = this.playMode;
+          this.uiSettings = { ...DEFAULT_UI_SETTINGS, debugVisible: keepDebug, playMode: keepPlay };
+          saveUiSettings(this.uiSettings);
+
+          if (this.leftStick) this.leftStick.refreshFromSettings();
+          if (this.rightStick) this.rightStick.refreshFromSettings();
+        }
+
+        applyUiVisibility() {
+          const showDebug = this.debugVisible && !this.playMode;
+
+          if (this.infoText) this.infoText.setVisible(showDebug);
+          if (this.fpsText) this.fpsText.setVisible(showDebug);
+          if (this.resetButton) this.resetButton.setVisible(!this.playMode);
+          if (this.uiButton) this.uiButton.setVisible(!this.playMode);
+          if (this.debugButton) {
+            this.debugButton.setVisible(!this.playMode);
+            this.debugButton.setText(this.debugVisible ? "DEBUG" : "NO DBG");
+          }
+          if (this.playButton) this.playButton.setText(this.playMode ? "DEV" : "PLAY");
+          if (this.uiPanel) this.uiPanel.setVisible(this.uiPanelOpen && !this.playMode);
+
+          this.applyChunkDebugVisibility();
+          this.layoutUi();
+        }
+
+        applyChunkDebugVisibility() {
+          const visible = this.debugVisible && !this.playMode;
+          for (const rendered of this.renderedChunks.values()) {
+            if (!rendered.debugObjects) continue;
+            for (const obj of rendered.debugObjects) obj.setVisible(visible);
+          }
+        }
+
+        updateFps(deltaMs) {
+          if (deltaMs <= 0) return;
+          const instant = 1000 / deltaMs;
+          this.fpsValue = this.fpsValue === 0 ? instant : this.fpsValue * 0.9 + instant * 0.1;
         }
 
         updateInfoText() {
@@ -341,15 +563,27 @@
           const cx = this.getPlayerChunkX();
           const cy = this.getPlayerChunkY();
           const local = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
+          const objectCount = Array.from(this.renderedChunks.values()).reduce(
+            (sum, rendered) => sum + rendered.objects.length,
+            0
+          );
 
           this.infoText.setText(
-            `v0.3.1 Telegram test\n` +
-              `Загружено: 3×3 чанка\n` +
+            `v0.4 Telegram playability\n` +
+              `Загружено чанков: ${this.renderedChunks.size}\n` +
               `Центр: ${this.centerChunkX}, ${this.centerChunkY}\n` +
               `Игрок в чанке: ${cx}, ${cy}\n` +
               `Локально: ${local.x.toFixed(1)} / ${local.y.toFixed(1)}\n` +
               `Глобально: ${this.playerGlobalX.toFixed(1)} / ${this.playerGlobalY.toFixed(1)}`
           );
+
+          if (this.fpsText) {
+            this.fpsText.setText(
+              `FPS: ${Math.round(this.fpsValue)} | objects: ${objectCount} | UI: ${Math.round(this.uiSettings.stickXFactor * 100)}/${Math.round(this.uiSettings.stickYFactor * 100)}`
+            );
+          }
+
+          this.layoutUi();
         }
 
         resetPlayer() {
@@ -759,12 +993,20 @@
           const chunk = this.getChunkData(cx, cy);
           const objects = [];
 
+          const debugObjects = [];
+
           const groundG = this.add.graphics();
           groundG.setDepth(-100000);
           objects.push(groundG);
 
           this.drawChunkGround(chunk, groundG);
-          this.drawChunkBorder(chunk, groundG);
+
+          const borderG = this.add.graphics();
+          borderG.setDepth(99980);
+          objects.push(borderG);
+          debugObjects.push(borderG);
+          this.drawChunkBorder(chunk, borderG);
+
           this.drawChunkWalls(chunk, objects);
 
           const label = this.add
@@ -780,8 +1022,10 @@
           const center = this.gridToWorld(cx * CHUNK_SIZE + 16, cy * CHUNK_SIZE + 16);
           label.setPosition(center.x - 18, center.y - 10);
           objects.push(label);
+          debugObjects.push(label);
 
-          this.renderedChunks.set(chunkKey(cx, cy), { objects });
+          this.renderedChunks.set(chunkKey(cx, cy), { objects, debugObjects });
+          this.applyChunkDebugVisibility();
         }
 
         drawChunkGround(chunk, g) {
