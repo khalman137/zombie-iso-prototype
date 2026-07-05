@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <title>Zombie Iso Prototype</title>
+
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #111;
+        touch-action: none;
+        user-select: none;
+      }
+
+      #game {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      canvas {
+        display: block;
+      }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
+  </head>
+
+  <body>
+    <div id="game"></div>
+
+    <script>
+      const TILE_W = 64;
+      const TILE_H = 32;
+
+      const MAP_W = 32;
+      const MAP_H = 32;
+
+      const MAP_OFFSET_X = 900;
+      const MAP_OFFSET_Y = 80;
+
+      const TileKind = {
+        Grass: 0,
+        Road: 1,
+        Floor: 2,
+        Wall: 3,
+      };
+
+      class VirtualStick {
+        constructor(scene, side) {
+          this.scene = scene;
+          this.side = side;
+
+          this.centerX = 0;
+          this.centerY = 0;
+
+          this.valueX = 0;
+          this.valueY = 0;
+          this.strength = 0;
+
+          this.radius = 56;
+          this.knobRadius = 22;
+          this.activePointerId = null;
+
+          this.graphics = scene.add.graphics();
+          this.graphics.setScrollFactor(0);
+          this.graphics.setDepth(100000);
+
+          this.layout();
+
+          scene.input.on("pointerdown", this.onPointerDown, this);
+          scene.input.on("pointermove", this.onPointerMove, this);
+          scene.input.on("pointerup", this.onPointerUp, this);
+          scene.input.on("pointerupoutside", this.onPointerUp, this);
+
+          scene.scale.on("resize", this.onResize, this);
+
+          this.draw();
+        }
+
+        onResize() {
+          this.layout();
+          this.reset();
+        }
+
+        layout() {
+          const w = this.scene.scale.width;
+          const h = this.scene.scale.height;
+
+          const marginX = Math.max(82, w * 0.11);
+          const marginY = Math.max(82, h * 0.16);
+
+          this.centerY = h - marginY;
+
+          if (this.side === "left") {
+            this.centerX = marginX;
+          } else {
+            this.centerX = w - marginX;
+          }
+        }
+
+        onPointerDown(pointer) {
+          if (this.activePointerId !== null) return;
+          if (!this.isPointerInZone(pointer)) return;
+
+          this.activePointerId = pointer.id;
+          this.updateFromPointer(pointer);
+        }
+
+        onPointerMove(pointer) {
+          if (pointer.id !== this.activePointerId) return;
+          this.updateFromPointer(pointer);
+        }
+
+        onPointerUp(pointer) {
+          if (pointer.id !== this.activePointerId) return;
+          this.reset();
+        }
+
+        isPointerInZone(pointer) {
+          const w = this.scene.scale.width;
+          const h = this.scene.scale.height;
+
+          const isBottom = pointer.y > h * 0.45;
+          const isLeftSide = pointer.x < w * 0.5;
+          const isRightSide = pointer.x >= w * 0.5;
+
+          if (this.side === "left") {
+            return isBottom && isLeftSide;
+          }
+
+          return isBottom && isRightSide;
+        }
+
+        updateFromPointer(pointer) {
+          const dx = pointer.x - this.centerX;
+          const dy = pointer.y - this.centerY;
+
+          const distance = Math.hypot(dx, dy);
+          const clampedDistance = Math.min(distance, this.radius);
+
+          if (distance <= 0.001) {
+            this.valueX = 0;
+            this.valueY = 0;
+            this.strength = 0;
+            this.draw();
+            return;
+          }
+
+          const nx = dx / distance;
+          const ny = dy / distance;
+
+          this.valueX = nx * (clampedDistance / this.radius);
+          this.valueY = ny * (clampedDistance / this.radius);
+          this.strength = clampedDistance / this.radius;
+
+          this.draw();
+        }
+
+        reset() {
+          this.activePointerId = null;
+          this.valueX = 0;
+          this.valueY = 0;
+          this.strength = 0;
+          this.draw();
+        }
+
+        draw() {
+          const g = this.graphics;
+          g.clear();
+
+          const knobX = this.centerX + this.valueX * this.radius;
+          const knobY = this.centerY + this.valueY * this.radius;
+
+          g.lineStyle(3, 0xffffff, 0.35);
+          g.fillStyle(0xffffff, 0.1);
+          g.fillCircle(this.centerX, this.centerY, this.radius);
+          g.strokeCircle(this.centerX, this.centerY, this.radius);
+
+          g.fillStyle(0xffffff, 0.28);
+          g.fillCircle(knobX, knobY, this.knobRadius);
+
+          g.lineStyle(2, 0xffffff, 0.22);
+          g.lineBetween(this.centerX, this.centerY, knobX, knobY);
+        }
+      }
+
+      class IsoPrototypeScene extends Phaser.Scene {
+        constructor() {
+          super("IsoPrototypeScene");
+
+          this.map = [];
+
+          this.player = null;
+          this.playerArrow = null;
+
+          this.playerPos = {
+            x: 15.5,
+            y: 19.5,
+          };
+
+          this.playerSpeed = 4.2;
+          this.playerRadius = 0.22;
+
+          this.leftStick = null;
+          this.rightStick = null;
+
+          this.facingAngle = 0;
+        }
+
+        create() {
+          this.input.addPointer(3);
+
+          this.createMapData();
+          this.drawMap();
+          this.createPlayer();
+          this.createSticks();
+          this.setupCamera();
+
+          this.add
+            .text(
+              12,
+              12,
+              "Левый стик: ходьба\nПравый стик: поворот\n32×32 изометрия",
+              {
+                fontFamily: "Arial",
+                fontSize: "16px",
+                color: "#ffffff",
+                backgroundColor: "#00000088",
+                padding: {
+                  x: 8,
+                  y: 6,
+                },
+              }
+            )
+            .setScrollFactor(0)
+            .setDepth(100001);
+        }
+
+        update(time, deltaMs) {
+          const dt = deltaMs / 1000;
+
+          this.updatePlayerFacing();
+          this.updatePlayerMovement(dt);
+          this.syncPlayerWorldPosition();
+        }
+
+        createMapData() {
+          this.map = [];
+
+          for (let y = 0; y < MAP_H; y++) {
+            const row = [];
+
+            for (let x = 0; x < MAP_W; x++) {
+              row.push(TileKind.Grass);
+            }
+
+            this.map.push(row);
+          }
+
+          this.addRoads();
+
+          this.addHouse(4, 5, 9, 7, 4);
+          this.addHouse(20, 18, 8, 8, 4);
+
+          this.addRoadLine(8, 12, 16, 12);
+          this.addRoadLine(16, 26, 24, 26);
+        }
+
+        addRoads() {
+          for (let y = 0; y < MAP_H; y++) {
+            this.setTile(15, y, TileKind.Road);
+            this.setTile(16, y, TileKind.Road);
+          }
+
+          for (let x = 0; x < MAP_W; x++) {
+            this.setTile(x, 15, TileKind.Road);
+            this.setTile(x, 16, TileKind.Road);
+          }
+        }
+
+        addRoadLine(x1, y1, x2, y2) {
+          const minX = Math.min(x1, x2);
+          const maxX = Math.max(x1, x2);
+          const minY = Math.min(y1, y2);
+          const maxY = Math.max(y1, y2);
+
+          for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
+              this.setTile(x, y, TileKind.Road);
+            }
+          }
+        }
+
+        addHouse(startX, startY, width, height, doorLocalX) {
+          for (let y = startY; y < startY + height; y++) {
+            for (let x = startX; x < startX + width; x++) {
+              const isBorder =
+                x === startX ||
+                y === startY ||
+                x === startX + width - 1 ||
+                y === startY + height - 1;
+
+              const isDoor = y === startY + height - 1 && x === startX + doorLocalX;
+
+              if (isBorder && !isDoor) {
+                this.setTile(x, y, TileKind.Wall);
+              } else {
+                this.setTile(x, y, TileKind.Floor);
+              }
+            }
+          }
+        }
+
+        setTile(x, y, kind) {
+          if (!this.isInsideMap(x, y)) return;
+          this.map[y][x] = kind;
+        }
+
+        drawMap() {
+          for (let y = 0; y < MAP_H; y++) {
+            for (let x = 0; x < MAP_W; x++) {
+              const kind = this.map[y][x];
+              const world = this.gridToWorld(x + 0.5, y + 0.5);
+
+              if (kind === TileKind.Wall) {
+                this.drawGroundTile(world.x, world.y, TileKind.Floor, x, y);
+                this.drawWallBlock(world.x, world.y, x, y);
+              } else {
+                this.drawGroundTile(world.x, world.y, kind, x, y);
+              }
+            }
+          }
+        }
+
+        drawGroundTile(worldX, worldY, kind, tileX, tileY) {
+          const g = this.add.graphics({
+            x: worldX,
+            y: worldY,
+          });
+
+          let color = 0x4f7f3a;
+
+          if (kind === TileKind.Road) color = 0x575757;
+          if (kind === TileKind.Floor) color = 0x8b785c;
+          if (kind === TileKind.Grass) color = 0x4f7f3a;
+
+          g.fillStyle(color, 1);
+          g.lineStyle(1, 0x1e1e1e, 0.25);
+
+          g.beginPath();
+          g.moveTo(0, -TILE_H / 2);
+          g.lineTo(TILE_W / 2, 0);
+          g.lineTo(0, TILE_H / 2);
+          g.lineTo(-TILE_W / 2, 0);
+          g.closePath();
+          g.fillPath();
+          g.strokePath();
+
+          g.setDepth(tileX + tileY);
+        }
+
+        drawWallBlock(worldX, worldY, tileX, tileY) {
+          const g = this.add.graphics({
+            x: worldX,
+            y: worldY,
+          });
+
+          const h = 30;
+
+          g.fillStyle(0x5d5247, 1);
+          g.beginPath();
+          g.moveTo(-TILE_W / 2, 0);
+          g.lineTo(0, TILE_H / 2);
+          g.lineTo(0, TILE_H / 2 - h);
+          g.lineTo(-TILE_W / 2, -h);
+          g.closePath();
+          g.fillPath();
+
+          g.fillStyle(0x3f3932, 1);
+          g.beginPath();
+          g.moveTo(TILE_W / 2, 0);
+          g.lineTo(0, TILE_H / 2);
+          g.lineTo(0, TILE_H / 2 - h);
+          g.lineTo(TILE_W / 2, -h);
+          g.closePath();
+          g.fillPath();
+
+          g.fillStyle(0x786b5f, 1);
+          g.lineStyle(1, 0x1e1e1e, 0.45);
+          g.beginPath();
+          g.moveTo(0, -TILE_H / 2 - h);
+          g.lineTo(TILE_W / 2, -h);
+          g.lineTo(0, TILE_H / 2 - h);
+          g.lineTo(-TILE_W / 2, -h);
+          g.closePath();
+          g.fillPath();
+          g.strokePath();
+
+          g.setDepth(tileX + tileY + 0.25);
+        }
+
+        createPlayer() {
+          this.player = this.add.container(0, 0);
+
+          const shadow = this.add.ellipse(0, 10, 30, 14, 0x000000, 0.35);
+
+          const body = this.add.circle(0, -8, 13, 0x2c6bd6, 1);
+          body.setStrokeStyle(2, 0x102d63, 1);
+
+          const head = this.add.circle(0, -24, 8, 0xe2b887, 1);
+          head.setStrokeStyle(2, 0x5b3a28, 1);
+
+          this.playerArrow = this.add.triangle(
+            0,
+            -8,
+            0,
+            -7,
+            28,
+            0,
+            0,
+            7,
+            0xffdd66,
+            1
+          );
+          this.playerArrow.setStrokeStyle(2, 0x7a5a00, 1);
+
+          this.player.add([shadow, body, head, this.playerArrow]);
+
+          this.syncPlayerWorldPosition();
+        }
+
+        createSticks() {
+          this.leftStick = new VirtualStick(this, "left");
+          this.rightStick = new VirtualStick(this, "right");
+        }
+
+        setupCamera() {
+          this.cameras.main.setBackgroundColor("#151515");
+          this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+          this.cameras.main.setZoom(1.2);
+
+          const roughWorldWidth = MAP_W * TILE_W;
+          const roughWorldHeight = MAP_H * TILE_H + 500;
+
+          this.cameras.main.setBounds(
+            MAP_OFFSET_X - roughWorldWidth,
+            0,
+            roughWorldWidth * 2,
+            roughWorldHeight * 2
+          );
+        }
+
+        updatePlayerFacing() {
+          if (!this.rightStick) return;
+
+          if (this.rightStick.strength > 0.15) {
+            this.facingAngle = Math.atan2(this.rightStick.valueY, this.rightStick.valueX);
+          }
+
+          if (this.playerArrow) {
+            this.playerArrow.setRotation(this.facingAngle);
+          }
+        }
+
+        updatePlayerMovement(dt) {
+          if (!this.leftStick) return;
+
+          const sx = this.leftStick.valueX;
+          const sy = this.leftStick.valueY;
+
+          if (this.leftStick.strength <= 0.08) return;
+
+          const gridDir = this.screenDirectionToGridDirection(sx, sy);
+
+          const nextX =
+            this.playerPos.x + gridDir.x * this.playerSpeed * this.leftStick.strength * dt;
+
+          const nextY =
+            this.playerPos.y + gridDir.y * this.playerSpeed * this.leftStick.strength * dt;
+
+          if (!this.isBlockedForPlayer(nextX, this.playerPos.y)) {
+            this.playerPos.x = nextX;
+          }
+
+          if (!this.isBlockedForPlayer(this.playerPos.x, nextY)) {
+            this.playerPos.y = nextY;
+          }
+        }
+
+        screenDirectionToGridDirection(screenX, screenY) {
+          const a = screenX / (TILE_W / 2);
+          const b = screenY / (TILE_H / 2);
+
+          let gridX = (a + b) / 2;
+          let gridY = (b - a) / 2;
+
+          const len = Math.hypot(gridX, gridY);
+
+          if (len <= 0.001) {
+            return {
+              x: 0,
+              y: 0,
+            };
+          }
+
+          return {
+            x: gridX / len,
+            y: gridY / len,
+          };
+        }
+
+        syncPlayerWorldPosition() {
+          const world = this.gridToWorld(this.playerPos.x, this.playerPos.y);
+
+          this.player.setPosition(world.x, world.y - 8);
+          this.player.setDepth(this.playerPos.x + this.playerPos.y + 0.6);
+        }
+
+        isBlockedForPlayer(gridX, gridY) {
+          const r = this.playerRadius;
+
+          return (
+            this.isBlockedTileAt(gridX - r, gridY - r) ||
+            this.isBlockedTileAt(gridX + r, gridY - r) ||
+            this.isBlockedTileAt(gridX - r, gridY + r) ||
+            this.isBlockedTileAt(gridX + r, gridY + r)
+          );
+        }
+
+        isBlockedTileAt(gridX, gridY) {
+          const tileX = Math.floor(gridX);
+          const tileY = Math.floor(gridY);
+
+          if (!this.isInsideMap(tileX, tileY)) return true;
+
+          return this.map[tileY][tileX] === TileKind.Wall;
+        }
+
+        isInsideMap(x, y) {
+          return x >= 0 && y >= 0 && x < MAP_W && y < MAP_H;
+        }
+
+        gridToWorld(gridX, gridY) {
+          const worldX = MAP_OFFSET_X + (gridX - gridY) * (TILE_W / 2);
+          const worldY = MAP_OFFSET_Y + (gridX + gridY) * (TILE_H / 2);
+
+          return {
+            x: worldX,
+            y: worldY,
+          };
+        }
+      }
+
+      const config = {
+        type: Phaser.AUTO,
+        parent: "game",
+        width: window.innerWidth,
+        height: window.innerHeight,
+        backgroundColor: "#111111",
+        scene: IsoPrototypeScene,
+        scale: {
+          mode: Phaser.Scale.RESIZE,
+          autoCenter: Phaser.Scale.CENTER_BOTH,
+        },
+      };
+
+      new Phaser.Game(config);
+    </script>
+  </body>
+</html>
