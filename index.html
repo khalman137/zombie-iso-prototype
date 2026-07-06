@@ -212,7 +212,7 @@
       const MAP_OFFSET_X = 900;
       const MAP_OFFSET_Y = 70;
       const FLOOR_HEIGHT_PX = 72;
-      const SETTINGS_KEY = "zombie_iso_ui_v071_ramps";
+      const SETTINGS_KEY = "zombie_iso_ui_v072_ramps_visible";
 
       const TileKind = {
         Void: -1,
@@ -613,7 +613,7 @@
           const chunk = this.getChunk(playerChunk.cx, playerChunk.cy);
           const fps = Math.round(this.game.loop.actualFps || 0);
           this.infoText.setText(
-            `v0.7.1 ramps + ladder\n` +
+            `v0.7.2 visible ramp test\n` +
               `FPS: ${fps}\n` +
               `Z: ${this.playerZ}  (${this.getZLabel(this.playerZ)})\n` +
               `Chunk: ${playerChunk.cx}, ${playerChunk.cy}\n` +
@@ -732,6 +732,7 @@
               if (building.tower) this.addTestTower(chunk, building);
               else this.addBuildingToLevel(groundLevel, building, building.shop ? TileKind.Concrete : TileKind.Floor);
             }
+            if (key === "0,0") this.addTrainingRamp(chunk);
           } else {
             this.paintRect(groundLevel, 14, 0, 4, 32, TileKind.Road);
           }
@@ -813,6 +814,31 @@
             fromZ: 0,
             toZ: 1,
           };
+          z0.ramps.push(ramp);
+          z1.ramps.push(ramp);
+        }
+
+        addTrainingRamp(chunk) {
+          const z0 = this.ensureLevel(chunk, 0, TileKind.Grass);
+          const z1 = this.ensureLevel(chunk, 1, TileKind.Void);
+
+          // Яркий отдельный тест: ходовая лестница-рампа рядом со стартом.
+          // Она не спрятана внутри здания, чтобы сразу было видно, работает ли подъём ногами.
+          this.paintRect(z0, 10, 18, 8, 4, TileKind.Dirt);
+          this.paintRect(z1, 14, 18, 5, 4, TileKind.Concrete);
+
+          const ramp = {
+            x: 10,
+            y: 18,
+            length: 4,
+            width: 2,
+            dir: "east",
+            fromZ: 0,
+            toZ: 1,
+            label: "РАМПА ↑",
+            test: true,
+          };
+
           z0.ramps.push(ramp);
           z1.ramps.push(ramp);
         }
@@ -965,8 +991,8 @@
             }
 
             const g = this.add.graphics();
-            g.fillStyle(0xb8904a, 0.95);
-            g.lineStyle(2, 0x2a2114, 0.85);
+            g.fillStyle(ramp.test ? 0xffa12b : 0xb8904a, 0.98);
+            g.lineStyle(ramp.test ? 4 : 2, ramp.test ? 0xfff1a6 : 0x2a2114, 0.95);
             g.beginPath();
             g.moveTo(a.x, a.y);
             g.lineTo(b.x, b.y);
@@ -991,8 +1017,24 @@
               g.lineBetween(left.x, left.y, right.x, right.y);
             }
 
-            g.setDepth(gx + gy + Math.max(ramp.fromZ, ramp.toZ) * 10000 + 0.65);
+            const rampDepth = gx + gy + Math.max(ramp.fromZ, ramp.toZ) * 10000 + 0.65;
+            g.setDepth(rampDepth);
             objects.push(g);
+
+            if (ramp.label) {
+              const mid = this.gridToWorld(gx + len * 0.5, gy + w * 0.5, (ramp.fromZ + ramp.toZ) * 0.5);
+              const label = this.add
+                .text(mid.x, mid.y - 38, ramp.label, {
+                  fontFamily: "Arial",
+                  fontSize: "18px",
+                  color: "#1b1200",
+                  backgroundColor: "#ffd36acc",
+                  padding: { x: 8, y: 4 },
+                })
+                .setOrigin(0.5)
+                .setDepth(rampDepth + 0.05);
+              objects.push(label);
+            }
           }
         }
 
