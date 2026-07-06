@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Zombie Iso Prototype v0.7.6</title>
+    <title>Zombie Iso Prototype v0.7.7</title>
 
     <style>
       :root {
@@ -199,8 +199,8 @@
           <button class="panel-btn" id="close-settings">Закрыть</button>
         </div>
         <div class="panel-note">
-          <span class="pill">v0.7.6</span>
-          Стартовый дом у точки появления. Внутри 4 рамповые лестницы в четыре стороны, перила и проёмы на втором этаже. Подвал оставлен отдельной вертикальной лестницей.
+          <span class="pill">v0.7.7</span>
+          Стартовый дом 11×11 вокруг точки появления. От центра идут 4 рампы к четырём стенам: низ у персонажа, верх у стены, с одной клеткой запаса до стены.
         </div>
       </div>
     </div>
@@ -218,7 +218,7 @@
       const PLAYER_HEIGHT_PX = Math.round(PERSON_HEIGHT_M * PX_PER_METER_Z);
       const FLOOR_HEIGHT_PX = STOREY_HEIGHT_M * PX_PER_METER_Z;
       const WALL_HEIGHT_PX = FLOOR_HEIGHT_PX;
-      const SETTINGS_KEY = "zombie_iso_ui_v076_four_ramps_house";
+      const SETTINGS_KEY = "zombie_iso_ui_v077_centered_ramps";
 
       const TileKind = {
         Void: -1,
@@ -280,7 +280,7 @@
           ],
           buildings: [
             { x: 4, y: 5, w: 8, h: 6, doorSide: "south", doorOffset: 3 },
-            { x: 10, y: 11, w: 12, h: 12, doorSide: "south", doorOffset: 5, tower: true },
+            { x: 10, y: 12, w: 11, h: 11, doorSide: "south", doorOffset: 5, tower: true },
             { x: 5, y: 21, w: 8, h: 7, doorSide: "north", doorOffset: 4 },
           ],
         },
@@ -821,28 +821,36 @@
           this.addBuildingToLevel(z1, { ...b, doorSide: null }, TileKind.Floor);
           this.addBuildingToLevel(basement, { ...b, doorSide: null }, TileKind.Concrete);
 
-          // Подвал оставляем на кнопочной лестнице.
-          const downX = b.x + 6.5;
-          const downY = b.y + 6.5;
-          z0.stairs.push({ x: downX, y: downY, label: "Подвал ↓", targetZ: -1, targetX: downX, targetY: downY, dir: "down" });
-          basement.stairs.push({ x: downX, y: downY, label: "1 этаж ↑", targetZ: 0, targetX: downX, targetY: downY, dir: "up" });
+          // Центральная точка появления внутри дома.
+          const centerX = b.x + Math.floor(b.w / 2) + 0.5;
+          const centerY = b.y + Math.floor(b.h / 2) + 0.5;
+          this.playerGlobalX = centerX;
+          this.playerGlobalY = centerY;
 
+          // Подвал оставляем на кнопочной вертикальной лестнице в центре.
+          z0.stairs.push({ x: centerX, y: centerY, label: "Подвал ↓", targetZ: -1, targetX: centerX, targetY: centerY, dir: "down" });
+          basement.stairs.push({ x: centerX, y: centerY, label: "1 этаж ↑", targetZ: 0, targetX: centerX, targetY: centerY, dir: "up" });
+
+          // 4 симметричные рампы. Низ рядом с персонажем, верх у стены,
+          // при этом после подъёма остаётся 1 клетка до стены.
           const ramps = [
-            { x: b.x + 1, y: b.y + 5, length: 3, width: 1, dir: "east", fromZ: 0, toZ: 1, label: "→", railings: true },
-            { x: b.x + b.w - 4, y: b.y + 6, length: 3, width: 1, dir: "west", fromZ: 0, toZ: 1, label: "←", railings: true },
-            { x: b.x + 5, y: b.y + 1, length: 3, width: 1, dir: "south", fromZ: 0, toZ: 1, label: "↓", railings: true },
-            { x: b.x + 6, y: b.y + b.h - 4, length: 3, width: 1, dir: "north", fromZ: 0, toZ: 1, label: "↑", railings: true },
+            { x: b.x + 6, y: b.y + 5, length: 3, width: 1, dir: "east",  fromZ: 0, toZ: 1, label: "→", railings: true },
+            { x: b.x + 2, y: b.y + 5, length: 3, width: 1, dir: "west",  fromZ: 0, toZ: 1, label: "←", railings: true },
+            { x: b.x + 5, y: b.y + 6, length: 3, width: 1, dir: "south", fromZ: 0, toZ: 1, label: "↓", railings: true },
+            { x: b.x + 5, y: b.y + 2, length: 3, width: 1, dir: "north", fromZ: 0, toZ: 1, label: "↑", railings: true },
           ];
 
-          // Второй этаж остаётся почти целым, но у каждой рампы есть свой проём:
-          // над первой клеткой пол есть, над второй и третьей — нет.
+          // Проёмы на втором этаже:
+          // над первой клеткой марша пол есть, над второй и третьей — нет.
           for (const ramp of ramps) {
-            if (ramp.dir === "east" || ramp.dir === "west") {
-              const startX = ramp.dir === "east" ? ramp.x + 1 : ramp.x;
-              this.paintRect(z1, startX, ramp.y, 2, ramp.width, TileKind.Void);
-            } else {
-              const startY = ramp.dir === "south" ? ramp.y + 1 : ramp.y;
-              this.paintRect(z1, ramp.x, startY, ramp.width, 2, TileKind.Void);
+            if (ramp.dir === "east") {
+              this.paintRect(z1, ramp.x + 1, ramp.y, 2, 1, TileKind.Void);
+            } else if (ramp.dir === "west") {
+              this.paintRect(z1, ramp.x, ramp.y, 2, 1, TileKind.Void);
+            } else if (ramp.dir === "south") {
+              this.paintRect(z1, ramp.x, ramp.y + 1, 1, 2, TileKind.Void);
+            } else if (ramp.dir === "north") {
+              this.paintRect(z1, ramp.x, ramp.y, 1, 2, TileKind.Void);
             }
             z0.ramps.push(ramp);
             z1.ramps.push(ramp);
@@ -850,6 +858,7 @@
         }
 
         addPerimeterWalls(level, startX, startY, width, height, doorSide, doorOffset) {
+
 
           for (let x = startX; x < startX + width; x++) {
             const topIsDoor = doorSide === "north" && x === startX + doorOffset;
@@ -1351,7 +1360,7 @@
         }
 
         isPointInsideRampBounds(x, y, bounds, eps = 0) {
-          const sideMargin = 0.34;
+          const sideMargin = 0.38;
           if (bounds.fromEnd.axis === "x") {
             return x >= bounds.minX - eps && x <= bounds.maxX + eps && y >= bounds.minY + sideMargin - eps && y <= bounds.maxY - sideMargin + eps;
           }
@@ -1361,7 +1370,7 @@
         crossesRampEnd(currentX, currentY, nextX, nextY, bounds, endName) {
           const end = endName === "from" ? bounds.fromEnd : bounds.toEnd;
           const eps = 0.035;
-          const sideMargin = 0.34;
+          const sideMargin = 0.38;
           const crossesLine = (a, b, value) => {
             if (Math.abs(a - b) < 0.0001) return false;
             return Math.min(a, b) <= value + eps && Math.max(a, b) >= value - eps;
@@ -1460,16 +1469,16 @@
             const w = ramp.width || 1;
             const insideEastWest =
               (ramp.dir === "east" || ramp.dir === "west") &&
-              lx >= ramp.x - 0.08 &&
-              lx <= ramp.x + len + 0.08 &&
-              ly >= ramp.y + 0.18 &&
-              ly <= ramp.y + w - 0.18;
+              lx >= ramp.x - 0.04 &&
+              lx <= ramp.x + len + 0.04 &&
+              ly >= ramp.y + 0.22 &&
+              ly <= ramp.y + w - 0.22;
             const insideNorthSouth =
               (ramp.dir === "north" || ramp.dir === "south") &&
-              lx >= ramp.x + 0.18 &&
-              lx <= ramp.x + w - 0.18 &&
-              ly >= ramp.y - 0.08 &&
-              ly <= ramp.y + len + 0.08;
+              lx >= ramp.x + 0.22 &&
+              lx <= ramp.x + w - 0.22 &&
+              ly >= ramp.y - 0.04 &&
+              ly <= ramp.y + len + 0.04;
 
             if (!insideEastWest && !insideNorthSouth) continue;
             if (this.playerZ !== ramp.fromZ && this.playerZ !== ramp.toZ) continue;
@@ -1500,14 +1509,37 @@
           const ramp = this.getCurrentRamp();
           if (!ramp) return;
           const progress = this.getRampProgress(ramp);
-          if (this.playerZ === ramp.fromZ && progress >= 0.965) {
+          if (this.playerZ === ramp.fromZ && progress >= 0.94) {
             this.playerZ = ramp.toZ;
+            this.placePlayerAtRampLanding(ramp, true);
             this.redrawLoadedChunks();
             this.syncPlayerWorldPosition();
-          } else if (this.playerZ === ramp.toZ && progress <= 0.035) {
+          } else if (this.playerZ === ramp.toZ && progress <= 0.06) {
             this.playerZ = ramp.fromZ;
+            this.placePlayerAtRampLanding(ramp, false);
             this.redrawLoadedChunks();
             this.syncPlayerWorldPosition();
+          }
+        }
+
+        placePlayerAtRampLanding(ramp, goingUp) {
+          const gx = ramp.chunkX * CHUNK_SIZE + ramp.x;
+          const gy = ramp.chunkY * CHUNK_SIZE + ramp.y;
+          const len = ramp.length || 3;
+          const mid = (ramp.width || 1) * 0.5;
+          const push = 0.22;
+          if (ramp.dir === "east") {
+            this.playerGlobalY = gy + mid;
+            this.playerGlobalX = goingUp ? gx + len + push : gx - push;
+          } else if (ramp.dir === "west") {
+            this.playerGlobalY = gy + mid;
+            this.playerGlobalX = goingUp ? gx - push : gx + len + push;
+          } else if (ramp.dir === "south") {
+            this.playerGlobalX = gx + mid;
+            this.playerGlobalY = goingUp ? gy + len + push : gy - push;
+          } else if (ramp.dir === "north") {
+            this.playerGlobalX = gx + mid;
+            this.playerGlobalY = goingUp ? gy - push : gy + len + push;
           }
         }
 
