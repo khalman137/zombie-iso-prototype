@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Zombie Iso Prototype v0.7.5</title>
+    <title>Zombie Iso Prototype v0.7.6</title>
 
     <style>
       :root {
@@ -199,8 +199,8 @@
           <button class="panel-btn" id="close-settings">Закрыть</button>
         </div>
         <div class="panel-note">
-          <span class="pill">v0.7.5</span>
-          Рампа стала проходной в обе стороны. Вход и выход только по прямой, по бокам видимые перила. На втором этаже над 2-й и 3-й клеткой марша пола нет.
+          <span class="pill">v0.7.6</span>
+          Стартовый дом у точки появления. Внутри 4 рамповые лестницы в четыре стороны, перила и проёмы на втором этаже. Подвал оставлен отдельной вертикальной лестницей.
         </div>
       </div>
     </div>
@@ -218,7 +218,7 @@
       const PLAYER_HEIGHT_PX = Math.round(PERSON_HEIGHT_M * PX_PER_METER_Z);
       const FLOOR_HEIGHT_PX = STOREY_HEIGHT_M * PX_PER_METER_Z;
       const WALL_HEIGHT_PX = FLOOR_HEIGHT_PX;
-      const SETTINGS_KEY = "zombie_iso_ui_v075_ramp_rails_floorholes";
+      const SETTINGS_KEY = "zombie_iso_ui_v076_four_ramps_house";
 
       const TileKind = {
         Void: -1,
@@ -273,14 +273,14 @@
           ],
         },
         "0,0": {
-          name: "Центр: тестовое здание",
+          name: "Центр: стартовый тестовый дом",
           roads: [
             { x: 0, y: 14, w: 32, h: 4 },
             { x: 14, y: 0, w: 4, h: 32 },
           ],
           buildings: [
             { x: 4, y: 5, w: 8, h: 6, doorSide: "south", doorOffset: 3 },
-            { x: 20, y: 6, w: 9, h: 9, doorSide: "south", doorOffset: 4, tower: true },
+            { x: 10, y: 11, w: 12, h: 12, doorSide: "south", doorOffset: 5, tower: true },
             { x: 5, y: 21, w: 8, h: 7, doorSide: "north", doorOffset: 4 },
           ],
         },
@@ -761,7 +761,6 @@
               if (building.tower) this.addTestTower(chunk, building);
               else this.addBuildingToLevel(groundLevel, building, building.shop ? TileKind.Concrete : TileKind.Floor);
             }
-            if (key === "0,0") this.addTrainingRamp(chunk);
           } else {
             this.paintRect(groundLevel, 14, 0, 4, 32, TileKind.Road);
           }
@@ -822,70 +821,36 @@
           this.addBuildingToLevel(z1, { ...b, doorSide: null }, TileKind.Floor);
           this.addBuildingToLevel(basement, { ...b, doorSide: null }, TileKind.Concrete);
 
-          // Кнопочные переходы оставляем как вертикальную лестницу/пожарную лестницу/люк.
-          const upX = b.x + 3.5;
-          const upY = b.y + 3.5;
-          const downX = b.x + 5.5;
-          const downY = b.y + 3.5;
-
-          z0.stairs.push({ x: upX, y: upY, label: "Вертикально ↑", targetZ: 1, targetX: upX, targetY: upY, dir: "up" });
-          z1.stairs.push({ x: upX, y: upY, label: "Вертикально ↓", targetZ: 0, targetX: upX, targetY: upY, dir: "down" });
+          // Подвал оставляем на кнопочной лестнице.
+          const downX = b.x + 6.5;
+          const downY = b.y + 6.5;
           z0.stairs.push({ x: downX, y: downY, label: "Подвал ↓", targetZ: -1, targetX: downX, targetY: downY, dir: "down" });
           basement.stairs.push({ x: downX, y: downY, label: "1 этаж ↑", targetZ: 0, targetX: downX, targetY: downY, dir: "up" });
 
-          // Ходовая лестница-рампа: 3 тайла длиной, 3 метра подъёма на 3 метра хода.
-          // На втором этаже в первых двух клетках лестницы нет пола: это отверстие под марш.
-          const ramp = {
-            x: b.x + 2,
-            y: b.y + 6,
-            length: 3,
-            width: 1,
-            dir: "east",
-            fromZ: 0,
-            toZ: 1,
-            approach: 1,
-            landing: 1,
-            railings: true,
-          };
-          this.paintRect(z1, ramp.x + 1, ramp.y, 2, ramp.width, TileKind.Void);
-          z0.ramps.push(ramp);
-          z1.ramps.push(ramp);
-        }
+          const ramps = [
+            { x: b.x + 1, y: b.y + 5, length: 3, width: 1, dir: "east", fromZ: 0, toZ: 1, label: "→", railings: true },
+            { x: b.x + b.w - 4, y: b.y + 6, length: 3, width: 1, dir: "west", fromZ: 0, toZ: 1, label: "←", railings: true },
+            { x: b.x + 5, y: b.y + 1, length: 3, width: 1, dir: "south", fromZ: 0, toZ: 1, label: "↓", railings: true },
+            { x: b.x + 6, y: b.y + b.h - 4, length: 3, width: 1, dir: "north", fromZ: 0, toZ: 1, label: "↑", railings: true },
+          ];
 
-        addTrainingRamp(chunk) {
-          const z0 = this.ensureLevel(chunk, 0, TileKind.Grass);
-          const z1 = this.ensureLevel(chunk, 1, TileKind.Void);
-
-          // Яркий отдельный тест: лестница-рампа 45° рядом со стартом.
-          // 1 тайл ≈ 1 метр, этаж ≈ 3 метра, значит марш занимает 3 тайла.
-          this.paintRect(z0, 9, 18, 10, 4, TileKind.Dirt);
-
-          const ramp = {
-            x: 10,
-            y: 19,
-            length: 3,
-            width: 1,
-            dir: "east",
-            fromZ: 0,
-            toZ: 1,
-            approach: 1,
-            landing: 1,
-            label: "ЛЕСТНИЦА 45° ↑",
-            test: true,
-            railings: true,
-          };
-
-          // На втором этаже пол есть над 1-й клеткой марша и вокруг лестницы,
-          // но над 2-й и 3-й клеткой пола нет — это проём под подъём.
-          this.paintRect(z1, ramp.x, ramp.y, 8, ramp.width, TileKind.Concrete);
-          this.paintRect(z1, ramp.x + 3, ramp.y - 1, 5, 3, TileKind.Concrete);
-          this.paintRect(z1, ramp.x + 1, ramp.y, 2, ramp.width, TileKind.Void);
-
-          z0.ramps.push(ramp);
-          z1.ramps.push(ramp);
+          // Второй этаж остаётся почти целым, но у каждой рампы есть свой проём:
+          // над первой клеткой пол есть, над второй и третьей — нет.
+          for (const ramp of ramps) {
+            if (ramp.dir === "east" || ramp.dir === "west") {
+              const startX = ramp.dir === "east" ? ramp.x + 1 : ramp.x;
+              this.paintRect(z1, startX, ramp.y, 2, ramp.width, TileKind.Void);
+            } else {
+              const startY = ramp.dir === "south" ? ramp.y + 1 : ramp.y;
+              this.paintRect(z1, ramp.x, startY, ramp.width, 2, TileKind.Void);
+            }
+            z0.ramps.push(ramp);
+            z1.ramps.push(ramp);
+          }
         }
 
         addPerimeterWalls(level, startX, startY, width, height, doorSide, doorOffset) {
+
           for (let x = startX; x < startX + width; x++) {
             const topIsDoor = doorSide === "north" && x === startX + doorOffset;
             const bottomIsDoor = doorSide === "south" && x === startX + doorOffset;
@@ -1046,6 +1011,59 @@
             }
 
             const g = this.add.graphics();
+
+            if (ramp.railings) {
+              const underside = this.add.graphics();
+              underside.fillStyle(0x8c7351, 0.88);
+              underside.lineStyle(2, 0x4b3b22, 0.92);
+
+              const makeSideWall = (topStart, topEnd, bottomStart, bottomEnd) => {
+                underside.beginPath();
+                underside.moveTo(bottomStart.x, bottomStart.y);
+                underside.lineTo(bottomEnd.x, bottomEnd.y);
+                underside.lineTo(topEnd.x, topEnd.y);
+                underside.lineTo(topStart.x, topStart.y);
+                underside.closePath();
+                underside.fillPath();
+                underside.strokePath();
+                for (let i = 1; i < len; i++) {
+                  const t = i / len;
+                  const bt = { x: Phaser.Math.Linear(bottomStart.x, bottomEnd.x, t), y: Phaser.Math.Linear(bottomStart.y, bottomEnd.y, t) };
+                  const tt = { x: Phaser.Math.Linear(topStart.x, topEnd.x, t), y: Phaser.Math.Linear(topStart.y, topEnd.y, t) };
+                  underside.lineStyle(1.5, 0x5b482b, 0.8);
+                  underside.lineBetween(bt.x, bt.y, tt.x, tt.y);
+                }
+              };
+
+              if (ramp.dir === "east" || ramp.dir === "west") {
+                const topNorthA = this.gridToWorld(gx, gy, ramp.fromZ);
+                const topNorthB = this.gridToWorld(gx + len, gy, ramp.toZ);
+                const baseNorthA = this.gridToWorld(gx, gy, ramp.fromZ);
+                const baseNorthB = this.gridToWorld(gx + len, gy, ramp.fromZ);
+                const topSouthA = this.gridToWorld(gx, gy + w, ramp.fromZ);
+                const topSouthB = this.gridToWorld(gx + len, gy + w, ramp.toZ);
+                const baseSouthA = this.gridToWorld(gx, gy + w, ramp.fromZ);
+                const baseSouthB = this.gridToWorld(gx + len, gy + w, ramp.fromZ);
+                makeSideWall(topNorthA, topNorthB, baseNorthA, baseNorthB);
+                makeSideWall(topSouthA, topSouthB, baseSouthA, baseSouthB);
+              } else {
+                const topWestA = this.gridToWorld(gx, gy, ramp.fromZ);
+                const topWestB = this.gridToWorld(gx, gy + len, ramp.toZ);
+                const baseWestA = this.gridToWorld(gx, gy, ramp.fromZ);
+                const baseWestB = this.gridToWorld(gx, gy + len, ramp.fromZ);
+                const topEastA = this.gridToWorld(gx + w, gy, ramp.fromZ);
+                const topEastB = this.gridToWorld(gx + w, gy + len, ramp.toZ);
+                const baseEastA = this.gridToWorld(gx + w, gy, ramp.fromZ);
+                const baseEastB = this.gridToWorld(gx + w, gy + len, ramp.fromZ);
+                makeSideWall(topWestA, topWestB, baseWestA, baseWestB);
+                makeSideWall(topEastA, topEastB, baseEastA, baseEastB);
+              }
+
+              const rampSideDepth = gx + gy + Math.max(ramp.fromZ, ramp.toZ) * 10000 + 0.55;
+              underside.setDepth(rampSideDepth);
+              objects.push(underside);
+            }
+
             g.fillStyle(ramp.test ? 0xffa12b : 0xb8904a, 0.98);
             g.lineStyle(ramp.test ? 4 : 2, ramp.test ? 0xfff1a6 : 0x2a2114, 0.95);
             g.beginPath();
@@ -1333,7 +1351,7 @@
         }
 
         isPointInsideRampBounds(x, y, bounds, eps = 0) {
-          const sideMargin = 0.22;
+          const sideMargin = 0.34;
           if (bounds.fromEnd.axis === "x") {
             return x >= bounds.minX - eps && x <= bounds.maxX + eps && y >= bounds.minY + sideMargin - eps && y <= bounds.maxY - sideMargin + eps;
           }
@@ -1343,7 +1361,7 @@
         crossesRampEnd(currentX, currentY, nextX, nextY, bounds, endName) {
           const end = endName === "from" ? bounds.fromEnd : bounds.toEnd;
           const eps = 0.035;
-          const sideMargin = 0.22;
+          const sideMargin = 0.34;
           const crossesLine = (a, b, value) => {
             if (Math.abs(a - b) < 0.0001) return false;
             return Math.min(a, b) <= value + eps && Math.max(a, b) >= value - eps;
@@ -1444,12 +1462,12 @@
               (ramp.dir === "east" || ramp.dir === "west") &&
               lx >= ramp.x - 0.08 &&
               lx <= ramp.x + len + 0.08 &&
-              ly >= ramp.y - 0.18 &&
-              ly <= ramp.y + w + 0.18;
+              ly >= ramp.y + 0.18 &&
+              ly <= ramp.y + w - 0.18;
             const insideNorthSouth =
               (ramp.dir === "north" || ramp.dir === "south") &&
-              lx >= ramp.x - 0.18 &&
-              lx <= ramp.x + w + 0.18 &&
+              lx >= ramp.x + 0.18 &&
+              lx <= ramp.x + w - 0.18 &&
               ly >= ramp.y - 0.08 &&
               ly <= ramp.y + len + 0.08;
 
