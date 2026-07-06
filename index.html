@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
-    <title>Zombie Iso Prototype v0.4.5 Telegram DOM UI</title>
+    <title>Zombie Iso Prototype v0.4.6 Telegram DOM UI</title>
 
     <style>
       html,
@@ -31,12 +31,19 @@
         display: block;
       }
 
+      #game {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+      }
+
       .dom-ui-button {
         position: fixed;
         right: max(12px, env(safe-area-inset-right));
         top: 50%;
         transform: translateY(-50%);
-        z-index: 50;
+        z-index: 2147483000;
+        pointer-events: auto;
         width: 52px;
         height: 52px;
         border-radius: 16px;
@@ -56,7 +63,8 @@
         left: 50%;
         top: 50%;
         transform: translate(-50%, -50%);
-        z-index: 60;
+        z-index: 2147483001;
+        pointer-events: auto;
         width: min(620px, calc(100vw - 32px));
         max-height: min(74vh, 420px);
         overflow: auto;
@@ -177,7 +185,7 @@
         Dirt: 3,
       };
 
-      const UI_STORAGE_KEY = "zombie_iso_ui_v045";
+      const UI_STORAGE_KEY = "zombie_iso_ui_v046";
 
       const DEFAULT_UI_SETTINGS = {
         // stickXFactor: больше значение = стики ближе к центру.
@@ -428,9 +436,40 @@
 
         if (!uiButton || !panel) return;
 
-        const stop = (event) => {
-          event.preventDefault();
+        // В Telegram WebView обычный click иногда не рождается,
+        // особенно если до него был preventDefault на touch/pointer.
+        // Поэтому все UI-кнопки активируются напрямую на pointerup/touchend/click,
+        // с защитой от двойного срабатывания.
+        const consume = (event) => {
+          if (!event) return;
+          if (event.cancelable) event.preventDefault();
           event.stopPropagation();
+        };
+
+        const activate = (el, callback) => {
+          if (!el) return;
+          let lastActivationAt = 0;
+
+          const run = (event) => {
+            consume(event);
+
+            const now = Date.now();
+            if (now - lastActivationAt < 260) return;
+            lastActivationAt = now;
+
+            callback();
+            updateDebugButton();
+          };
+
+          // pointerup обычно лучший вариант: пользователь уже точно нажал кнопку,
+          // а не просто начал жест.
+          el.addEventListener("pointerup", run, { passive: false });
+          el.addEventListener("touchend", run, { passive: false });
+          el.addEventListener("click", run, { passive: false });
+
+          // А вот pointerdown/touchstart только гасим, чтобы Phaser не считал это стиком.
+          el.addEventListener("pointerdown", consume, { passive: false });
+          el.addEventListener("touchstart", consume, { passive: false });
         };
 
         const setPanelOpen = (open) => {
@@ -444,45 +483,32 @@
           debugButton.textContent = scene.debugVisible ? "Debug: вкл" : "Debug: выкл";
         };
 
-        const bind = (id, callback) => {
-          const el = document.getElementById(id);
-          if (!el) return;
-          el.addEventListener("pointerdown", stop, { passive: false });
-          el.addEventListener("touchstart", stop, { passive: false });
-          el.addEventListener("click", (event) => {
-            stop(event);
-            callback();
-            updateDebugButton();
-          });
-        };
+        // Гасим касания по самой панели, но не ломаем кнопки внутри.
+        panel.addEventListener("pointerdown", consume, { passive: false });
+        panel.addEventListener("touchstart", consume, { passive: false });
+        panel.addEventListener("pointerup", (event) => event.stopPropagation(), { passive: false });
+        panel.addEventListener("touchend", (event) => event.stopPropagation(), { passive: false });
+        panel.addEventListener("click", (event) => event.stopPropagation(), { passive: false });
 
-        uiButton.addEventListener("pointerdown", stop, { passive: false });
-        uiButton.addEventListener("touchstart", stop, { passive: false });
-        uiButton.addEventListener("click", (event) => {
-          stop(event);
+        activate(uiButton, () => {
           setPanelOpen(panel.classList.contains("hidden"));
-          updateDebugButton();
         });
 
-        panel.addEventListener("pointerdown", stop, { passive: false });
-        panel.addEventListener("touchstart", stop, { passive: false });
-        panel.addEventListener("click", (event) => event.stopPropagation());
-
-        bind("dom-debug", () => scene.toggleDebugVisible());
-        bind("dom-nudge", () => {
+        activate(document.getElementById("dom-debug"), () => scene.toggleDebugVisible());
+        activate(document.getElementById("dom-nudge"), () => {
           scene.nudgePlayerToNeighborTile();
           setPanelOpen(false);
         });
-        bind("dom-close", () => setPanelOpen(false));
-        bind("dom-up", () => scene.changeStickSetting("stickYFactor", 0.025, 0.16, 0.46));
-        bind("dom-down", () => scene.changeStickSetting("stickYFactor", -0.025, 0.16, 0.46));
-        bind("dom-reset-ui", () => scene.resetUiSettings());
-        bind("dom-center", () => scene.changeStickSetting("stickXFactor", 0.025, 0.13, 0.38));
-        bind("dom-edge", () => scene.changeStickSetting("stickXFactor", -0.025, 0.13, 0.38));
-        bind("dom-size-plus", () => scene.changeStickSetting("stickRadius", 4, 40, 90));
-        bind("dom-size-minus", () => scene.changeStickSetting("stickRadius", -4, 40, 90));
-        bind("dom-bright", () => scene.changeStickSetting("stickOpacity", 0.1, 0.25, 1));
-        bind("dom-fade", () => scene.changeStickSetting("stickOpacity", -0.1, 0.25, 1));
+        activate(document.getElementById("dom-close"), () => setPanelOpen(false));
+        activate(document.getElementById("dom-up"), () => scene.changeStickSetting("stickYFactor", 0.025, 0.16, 0.46));
+        activate(document.getElementById("dom-down"), () => scene.changeStickSetting("stickYFactor", -0.025, 0.16, 0.46));
+        activate(document.getElementById("dom-reset-ui"), () => scene.resetUiSettings());
+        activate(document.getElementById("dom-center"), () => scene.changeStickSetting("stickXFactor", 0.025, 0.13, 0.38));
+        activate(document.getElementById("dom-edge"), () => scene.changeStickSetting("stickXFactor", -0.025, 0.13, 0.38));
+        activate(document.getElementById("dom-size-plus"), () => scene.changeStickSetting("stickRadius", 4, 40, 90));
+        activate(document.getElementById("dom-size-minus"), () => scene.changeStickSetting("stickRadius", -4, 40, 90));
+        activate(document.getElementById("dom-bright"), () => scene.changeStickSetting("stickOpacity", 0.1, 0.25, 1));
+        activate(document.getElementById("dom-fade"), () => scene.changeStickSetting("stickOpacity", -0.1, 0.25, 1));
 
         updateDebugButton();
       }
