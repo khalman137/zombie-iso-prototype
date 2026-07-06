@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Zombie Iso PNG Zip Loader v0.8</title>
+  <title>Zombie Iso PNG Zip Loader v0.8.1</title>
   <style>
     :root {
       --safe-top: env(safe-area-inset-top, 0px);
@@ -148,7 +148,7 @@
         <button class="panel-btn" id="close-settings">Закрыть</button>
       </div>
       <div class="panel-note">
-        <span class="pill">v0.8 png zip loader</span>
+        <span class="pill">v0.8.1 png zip loader</span>
         Карта читается из архива <b>central_chunk_pngs.zip</b>. Центральный чанк берётся из PNG-слоёв, соседние чанки пока простая трава.
       </div>
     </div>
@@ -162,8 +162,8 @@ const MAP_OFFSET_X = 900;
 const MAP_OFFSET_Y = 70;
 const FLOOR_HEIGHT_PX = 84;
 const WALL_HEIGHT_PX = 84;
-const ARCHIVE_URL = "central_chunk_pngs.zip?v=1";
-const SETTINGS_KEY = "zombie_iso_png_loader_v08";
+const ARCHIVE_URL = "central_chunk_pngs.zip?v=2";
+const SETTINGS_KEY = "zombie_iso_png_loader_v081";
 
 const TileKind = {
   Void: -1,
@@ -561,7 +561,12 @@ class IsoPngLoaderScene extends Phaser.Scene {
     if (layers.z1_floor) this.readFloorLayer(z1, layers.z1_floor);
     if (layers.z0_walls) this.readWallsLayer(z0, layers.z0_walls);
     if (layers.z1_walls) this.readWallsLayer(z1, layers.z1_walls);
-    if (layers.z0_ramps) this.readRampsLayer(z0, layers.z0_ramps, 0, 1);
+    if (layers.z0_ramps) {
+      this.readRampsLayer(z0, layers.z0_ramps, 0, 1);
+      // Та же рампа должна существовать и на верхнем уровне для спуска,
+      // но рисовать её второй раз не нужно.
+      for (const ramp of z0.ramps) z1.ramps.push({ ...ramp, proxyOnly: true });
+    }
     if (layers.z1_ramps) this.readRampsLayer(z1, layers.z1_ramps, 1, 2);
     if (layers.z0_markers) this.readMarkers(chunk, layers.z0_markers);
 
@@ -821,6 +826,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
 
   drawRampsForLevel(objects, level, cx, cy) {
     for (const ramp of level.ramps || []) {
+      if (ramp.proxyOnly) continue;
       const gx = cx * 32 + ramp.x;
       const gy = cy * 32 + ramp.y;
       const len = ramp.length || 3;
@@ -862,42 +868,66 @@ class IsoPngLoaderScene extends Phaser.Scene {
   }
 
   getRampWorldPoints(gx, gy, ramp) {
-    const len = ramp.length || 3;
-    const w = ramp.width || 1;
+    const b = this.getRampBoundsFromMarker(gx, gy, ramp);
+    const minX = b.minX;
+    const maxX = b.maxX;
+    const minY = b.minY;
+    const maxY = b.maxY;
+    const fz = ramp.fromZ;
+    const tz = ramp.toZ;
+
     if (ramp.dir === "east") {
       return {
-        a: this.gridToWorld(gx, gy, ramp.fromZ),
-        b: this.gridToWorld(gx + len, gy, ramp.toZ),
-        c: this.gridToWorld(gx + len, gy + w, ramp.toZ),
-        d: this.gridToWorld(gx, gy + w, ramp.fromZ),
+        a: this.gridToWorld(minX, minY, fz),
+        b: this.gridToWorld(maxX, minY, tz),
+        c: this.gridToWorld(maxX, maxY, tz),
+        d: this.gridToWorld(minX, maxY, fz),
       };
     }
     if (ramp.dir === "west") {
       return {
-        a: this.gridToWorld(gx + len, gy, ramp.fromZ),
-        b: this.gridToWorld(gx, gy, ramp.toZ),
-        c: this.gridToWorld(gx, gy + w, ramp.toZ),
-        d: this.gridToWorld(gx + len, gy + w, ramp.fromZ),
+        a: this.gridToWorld(maxX, minY, fz),
+        b: this.gridToWorld(minX, minY, tz),
+        c: this.gridToWorld(minX, maxY, tz),
+        d: this.gridToWorld(maxX, maxY, fz),
       };
     }
     if (ramp.dir === "south") {
       return {
-        a: this.gridToWorld(gx, gy, ramp.fromZ),
-        b: this.gridToWorld(gx + w, gy, ramp.fromZ),
-        c: this.gridToWorld(gx + w, gy + len, ramp.toZ),
-        d: this.gridToWorld(gx, gy + len, ramp.toZ),
+        a: this.gridToWorld(minX, minY, fz),
+        b: this.gridToWorld(maxX, minY, fz),
+        c: this.gridToWorld(maxX, maxY, tz),
+        d: this.gridToWorld(minX, maxY, tz),
       };
     }
     return {
-      a: this.gridToWorld(gx, gy + len, ramp.fromZ),
-      b: this.gridToWorld(gx + w, gy + len, ramp.fromZ),
-      c: this.gridToWorld(gx + w, gy, ramp.toZ),
-      d: this.gridToWorld(gx, gy, ramp.toZ),
+      a: this.gridToWorld(minX, maxY, fz),
+      b: this.gridToWorld(maxX, maxY, fz),
+      c: this.gridToWorld(maxX, minY, tz),
+      d: this.gridToWorld(minX, minY, tz),
     };
+  }
+
+  getRampBoundsFromMarker(gx, gy, ramp) {
+    const len = ramp.length || 3;
+    const w = ramp.width || 1;
+
+    if (ramp.dir === "east") {
+      return { gx, gy, len, w, minX: gx, maxX: gx + len, minY: gy, maxY: gy + w };
+    }
+    if (ramp.dir === "west") {
+      return { gx, gy, len, w, minX: gx - len + 1, maxX: gx + 1, minY: gy, maxY: gy + w };
+    }
+    if (ramp.dir === "south") {
+      return { gx, gy, len, w, minX: gx, maxX: gx + w, minY: gy, maxY: gy + len };
+    }
+    return { gx, gy, len, w, minX: gx, maxX: gx + w, minY: gy - len + 1, maxY: gy + 1 };
   }
 
   drawRampSideWalls(g, gx, gy, ramp, points) {
     const len = ramp.length || 3;
+    const bounds = this.getRampBoundsFromMarker(gx, gy, ramp);
+
     const make = (topA, topB, baseA, baseB) => {
       g.beginPath();
       g.moveTo(baseA.x, baseA.y);
@@ -914,25 +944,26 @@ class IsoPngLoaderScene extends Phaser.Scene {
         g.lineBetween(bt.x, bt.y, tt.x, tt.y);
       }
     };
+
     const { a, b, c, d } = points;
-    if (ramp.dir === "east" || ramp.dir === "west") {
-      const lowLeft = ramp.dir === "east" ? a : b;
-      const highLeft = ramp.dir === "east" ? b : a;
-      const lowRight = ramp.dir === "east" ? d : c;
-      const highRight = ramp.dir === "east" ? c : d;
-      const baseLeftHigh = this.gridToWorld(gx + (ramp.dir === "east" ? len : 0), gy, ramp.fromZ);
-      const baseRightHigh = this.gridToWorld(gx + (ramp.dir === "east" ? len : 0), gy + 1, ramp.fromZ);
-      make(lowLeft, highLeft, lowLeft, baseLeftHigh);
-      make(lowRight, highRight, lowRight, baseRightHigh);
+    const minX = bounds.minX;
+    const maxX = bounds.maxX;
+    const minY = bounds.minY;
+    const maxY = bounds.maxY;
+    const fz = ramp.fromZ;
+
+    if (ramp.dir === "east") {
+      make(a, b, this.gridToWorld(minX, minY, fz), this.gridToWorld(maxX, minY, fz));
+      make(d, c, this.gridToWorld(minX, maxY, fz), this.gridToWorld(maxX, maxY, fz));
+    } else if (ramp.dir === "west") {
+      make(a, b, this.gridToWorld(maxX, minY, fz), this.gridToWorld(minX, minY, fz));
+      make(d, c, this.gridToWorld(maxX, maxY, fz), this.gridToWorld(minX, maxY, fz));
+    } else if (ramp.dir === "south") {
+      make(a, d, this.gridToWorld(minX, minY, fz), this.gridToWorld(minX, maxY, fz));
+      make(b, c, this.gridToWorld(maxX, minY, fz), this.gridToWorld(maxX, maxY, fz));
     } else {
-      const lowLeft = ramp.dir === "south" ? a : d;
-      const highLeft = ramp.dir === "south" ? d : a;
-      const lowRight = ramp.dir === "south" ? b : c;
-      const highRight = ramp.dir === "south" ? c : b;
-      const baseLeftHigh = this.gridToWorld(gx, gy + (ramp.dir === "south" ? len : 0), ramp.fromZ);
-      const baseRightHigh = this.gridToWorld(gx + 1, gy + (ramp.dir === "south" ? len : 0), ramp.fromZ);
-      make(lowLeft, highLeft, lowLeft, baseLeftHigh);
-      make(lowRight, highRight, lowRight, baseRightHigh);
+      make(a, d, this.gridToWorld(minX, maxY, fz), this.gridToWorld(minX, minY, fz));
+      make(b, c, this.gridToWorld(maxX, maxY, fz), this.gridToWorld(maxX, minY, fz));
     }
   }
 
@@ -1012,8 +1043,8 @@ class IsoPngLoaderScene extends Phaser.Scene {
       return;
     }
 
-    if (this.canWalkAt(nextX, this.playerGlobalY)) this.playerGlobalX = nextX;
-    if (this.canWalkAt(this.playerGlobalX, nextY)) this.playerGlobalY = nextY;
+    if (this.canMoveTo(this.playerGlobalX, this.playerGlobalY, nextX, this.playerGlobalY)) this.playerGlobalX = nextX;
+    if (this.canMoveTo(this.playerGlobalX, this.playerGlobalY, this.playerGlobalX, nextY)) this.playerGlobalY = nextY;
   }
 
   screenDirectionToGridDirection(screenX, screenY) {
@@ -1058,15 +1089,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
   getRampBounds(ramp) {
     const gx = ramp.chunkX * 32 + ramp.x;
     const gy = ramp.chunkY * 32 + ramp.y;
-    const len = ramp.length || 3;
-    const w = ramp.width || 1;
-    return {
-      gx, gy, len, w,
-      minX: gx,
-      maxX: gx + ((ramp.dir === "east" || ramp.dir === "west") ? len : w),
-      minY: gy,
-      maxY: gy + ((ramp.dir === "north" || ramp.dir === "south") ? len : w),
-    };
+    return this.getRampBoundsFromMarker(gx, gy, ramp);
   }
 
   isPointInsideRampLane(x, y, ramp) {
@@ -1191,6 +1214,11 @@ class IsoPngLoaderScene extends Phaser.Scene {
     }
   }
 
+  canMoveTo(currentX, currentY, nextX, nextY) {
+    if (!this.canWalkAt(nextX, nextY)) return false;
+    return !this.crossesBlockingWall(currentX, currentY, nextX, nextY);
+  }
+
   canWalkAt(x, y) {
     const r = this.playerRadius;
     return this.isWalkableAt(x - r, y - r) &&
@@ -1207,6 +1235,80 @@ class IsoPngLoaderScene extends Phaser.Scene {
     if (loc.x < 0 || loc.x >= 32 || loc.y < 0 || loc.y >= 32) return false;
     const kind = level.ground[loc.y][loc.x];
     return kind !== TileKind.Void;
+  }
+
+  crossesBlockingWall(currentX, currentY, nextX, nextY) {
+    const r = this.playerRadius;
+
+    if (nextX > currentX) {
+      const oldEdge = currentX + r;
+      const newEdge = nextX + r;
+      const sampleYs = [currentY - r, currentY, currentY + r];
+      for (let xWall = Math.floor(oldEdge) + 1; xWall <= Math.floor(newEdge); xWall++) {
+        for (const sy of sampleYs) {
+          if (this.hasBlockingVerticalWall(xWall, Math.floor(sy))) return true;
+        }
+      }
+    } else if (nextX < currentX) {
+      const oldEdge = currentX - r;
+      const newEdge = nextX - r;
+      const sampleYs = [currentY - r, currentY, currentY + r];
+      for (let xWall = Math.floor(oldEdge); xWall >= Math.floor(newEdge) + 1; xWall--) {
+        for (const sy of sampleYs) {
+          if (this.hasBlockingVerticalWall(xWall, Math.floor(sy))) return true;
+        }
+      }
+    }
+
+    if (nextY > currentY) {
+      const oldEdge = currentY + r;
+      const newEdge = nextY + r;
+      const sampleXs = [currentX - r, currentX, currentX + r];
+      for (let yWall = Math.floor(oldEdge) + 1; yWall <= Math.floor(newEdge); yWall++) {
+        for (const sx of sampleXs) {
+          if (this.hasBlockingHorizontalWall(yWall, Math.floor(sx))) return true;
+        }
+      }
+    } else if (nextY < currentY) {
+      const oldEdge = currentY - r;
+      const newEdge = nextY - r;
+      const sampleXs = [currentX - r, currentX, currentX + r];
+      for (let yWall = Math.floor(oldEdge); yWall >= Math.floor(newEdge) + 1; yWall--) {
+        for (const sx of sampleXs) {
+          if (this.hasBlockingHorizontalWall(yWall, Math.floor(sx))) return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  hasBlockingVerticalWall(xWall, tileY) {
+    const ownerChunkX = floorDiv(xWall - 0.000001, 32);
+    const chunkY = floorDiv(tileY, 32);
+    const lx = xWall - ownerChunkX * 32;
+    const ly = positiveMod(tileY, 32);
+    const chunk = this.getChunk(ownerChunkX, chunkY);
+    const level = chunk.levels.get(this.playerZ);
+    if (!level) return false;
+    if (lx < 0 || lx > 32 || ly < 0 || ly >= 32) return false;
+    return this.wallBlocks(level.vWalls[ly][lx]);
+  }
+
+  hasBlockingHorizontalWall(yWall, tileX) {
+    const ownerChunkY = floorDiv(yWall - 0.000001, 32);
+    const chunkX = floorDiv(tileX, 32);
+    const lx = positiveMod(tileX, 32);
+    const ly = yWall - ownerChunkY * 32;
+    const chunk = this.getChunk(chunkX, ownerChunkY);
+    const level = chunk.levels.get(this.playerZ);
+    if (!level) return false;
+    if (lx < 0 || lx >= 32 || ly < 0 || ly > 32) return false;
+    return this.wallBlocks(level.hWalls[ly][lx]);
+  }
+
+  wallBlocks(hex) {
+    return hex === COLORS.wall || hex === COLORS.window;
   }
 
   getPlayerVisualZ() {
