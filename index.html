@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Zombie Iso PNG Zip Loader v0.8.7</title>
+  <title>Zombie Iso PNG Zip Loader v0.8.8</title>
   <style>
     :root {
       --safe-top: env(safe-area-inset-top, 0px);
@@ -148,7 +148,7 @@
         <button class="panel-btn" id="close-settings">Закрыть</button>
       </div>
       <div class="panel-note">
-        <span class="pill">v0.8.7 png zip loader</span>
+        <span class="pill">v0.8.8 png zip loader</span>
         Карта читается из архива <b>central_chunk_pngs.zip</b>. Центральный чанк берётся из PNG-слоёв, соседние чанки пока простая трава.
       </div>
     </div>
@@ -162,8 +162,15 @@ const MAP_OFFSET_X = 900;
 const MAP_OFFSET_Y = 70;
 const FLOOR_HEIGHT_PX = 84;
 const WALL_HEIGHT_PX = 84;
-const ARCHIVE_URL = "central_chunk_pngs.zip?v=8";
+const ARCHIVE_URL = "central_chunk_pngs.zip?v=9";
 const SETTINGS_KEY = "zombie_iso_png_loader_v081";
+const DEPTH_Z = 100000;
+const DEPTH_TILE = 100;
+
+function depthForIso(x, y, z, offset = 0) {
+  return Math.round(z * DEPTH_Z + (x + y) * DEPTH_TILE + offset);
+}
+
 
 const TileKind = {
   Void: -1,
@@ -556,7 +563,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
     this.infoText.setVisible(true);
     const loc = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
     this.infoText.setText(
-      `v0.8.7 PNG ZIP loader\n` +
+      `v0.8.8 PNG ZIP loader\n` +
       `archive: ${ARCHIVE_URL}\n` +
       `chunk: ${loc.cx},${loc.cy} z:${this.playerZ} view:${this.renderZ}\n` +
       `local: ${loc.x.toFixed(2)},${loc.y.toFixed(2)}\n` +
@@ -773,7 +780,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
         g.closePath();
         g.fillPath();
         g.strokePath();
-        g.setDepth(gx + gy + z * 10000 + (faded ? -120 : 0));
+        g.setDepth(depthForIso(gx + 0.5, gy + 0.5, z, faded ? -1200 : 0));
         objects.push(g);
       }
     }
@@ -818,7 +825,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.fillStyle(0xff8800, 0.75);
     g.fillCircle(p.x, p.y - 5, 5);
-    g.setDepth(x + y + z * 10000 + 0.6);
+    g.setDepth(depthForIso(x, y, z, 35));
     objects.push(g);
   }
 
@@ -840,7 +847,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
     g.strokePath();
     g.lineStyle(3, 0x87796b, faded ? 0.28 : 0.75);
     g.lineBetween(p1.x, p1.y - h, p2.x, p2.y - h);
-    g.setDepth(x1 + y1 + z * 10000 + (faded ? -80 : 0.45));
+    g.setDepth(depthForIso((x1 + x2) / 2, (y1 + y2) / 2, z, faded ? -900 : 85));
     return g;
   }
 
@@ -855,7 +862,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
         const fence = this.add.graphics();
         fence.lineStyle(4, 0xe9ddb2, 0.92);
         this.drawUpperOpeningFence(fence, gx, gy, ramp, points);
-        fence.setDepth(gx + gy + ramp.toZ * 10000 + 0.68);
+        fence.setDepth(depthForIso(gx + 0.5, gy + 0.5, ramp.toZ, 120));
         objects.push(fence);
         continue;
       }
@@ -864,7 +871,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
       underside.fillStyle(0x8c7351, 0.26);
       underside.lineStyle(2, 0x4b3b22, 0.55);
       this.drawRampShaftWalls(underside, gx, gy, ramp, points);
-      underside.setDepth(gx + gy + ramp.fromZ * 10000 + 0.55);
+      underside.setDepth(depthForIso(gx + 0.5, gy + 0.5, ramp.fromZ, 30));
       objects.push(underside);
 
       const { a, b, c, d } = points;
@@ -890,7 +897,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
       }
 
       this.drawRampRails(g, points, len, ramp.dir);
-      g.setDepth(gx + gy + ramp.fromZ * 10000 + 0.65);
+      g.setDepth(depthForIso(gx + 0.5, gy + 0.5, ramp.fromZ, 40));
       objects.push(g);
     }
   }
@@ -1095,23 +1102,9 @@ class IsoPngLoaderScene extends Phaser.Scene {
     body.setStrokeStyle(2, 0x102d63, 1);
     const head = this.add.circle(0, -43, 9, 0xe2b887, 1);
     head.setStrokeStyle(2, 0x5b3a28, 1);
-    this.playerHead = head;
     this.playerArrow = this.add.triangle(0, -15, 0, -7, 28, 0, 0, 7, 0xffdd66, 1);
     this.playerArrow.setStrokeStyle(2, 0x7a5a00, 1);
     this.player.add([shadow, body, head, this.playerArrow]);
-
-    // Верхняя часть персонажа отдельным слоем.
-    // Это не "только голова": это видимая часть тела над плоскостью пола.
-    this.playerUpperOverlay = this.add.container(0, 0);
-    const overlayBody = this.add.ellipse(0, -28, 18, 22, 0x2c6bd6, 1);
-    overlayBody.setStrokeStyle(2, 0x102d63, 1);
-    const overlayHead = this.add.circle(0, -43, 9, 0xe2b887, 1);
-    overlayHead.setStrokeStyle(2, 0x5b3a28, 1);
-    const overlayArrow = this.add.triangle(0, -24, 0, -7, 23, 0, 0, 7, 0xffdd66, 1);
-    overlayArrow.setStrokeStyle(1, 0x7a5a00, 1);
-    this.playerUpperOverlay.add([overlayBody, overlayHead, overlayArrow]);
-    this.playerUpperOverlay.setVisible(false);
-
     this.syncPlayerWorldPosition();
   }
 
@@ -1565,42 +1558,17 @@ class IsoPngLoaderScene extends Phaser.Scene {
     return Phaser.Math.Linear(this.activeRamp.fromZ, this.activeRamp.toZ, t);
   }
 
-  getUpperVisibleFraction(visualZ) {
-    if (!this.activeRamp) return 0;
-    const viewZ = this.renderZ ?? this.playerZ;
-    if (viewZ !== this.activeRamp.toZ) return 0;
-
-    // Насколько персонаж ниже плоскости верхнего пола.
-    // 0 = полностью над полом, 1 = почти весь под полом.
-    const below = Phaser.Math.Clamp(viewZ - visualZ, 0, 0.72);
-
-    // Аппроксимация "клиппинга": чем ниже персонаж уходит под пол,
-    // тем меньше верхней части рисуем отдельным слоем.
-    return Phaser.Math.Clamp(1 - below / 0.72, 0.18, 0.92);
-  }
-
   syncPlayerWorldPosition() {
     if (!this.player) return;
     const visualZ = this.getPlayerVisualZ();
     const world = this.gridToWorld(this.playerGlobalX, this.playerGlobalY, visualZ);
     this.player.setPosition(world.x, world.y - 3);
-    // Основной контейнер может уходить под пол.
-    this.player.setDepth(this.playerGlobalX + this.playerGlobalY + visualZ * 10000 + 8);
 
-    const visibleFraction = this.getUpperVisibleFraction(visualZ);
-    const showUpperOverlay = visibleFraction > 0 && visibleFraction < 0.91;
-    if (this.playerHead) this.playerHead.setVisible(!showUpperOverlay);
-
-    if (this.playerUpperOverlay) {
-      this.playerUpperOverlay.setVisible(showUpperOverlay);
-      this.playerUpperOverlay.setPosition(world.x, world.y - 3);
-      this.playerUpperOverlay.setScale(1, visibleFraction);
-      this.playerUpperOverlay.setDepth(this.playerGlobalX + this.playerGlobalY + (this.renderZ ?? this.playerZ) * 10000 + 220);
-      if (this.playerArrow) {
-        const overlayArrow = this.playerUpperOverlay.list && this.playerUpperOverlay.list[2];
-        if (overlayArrow) overlayArrow.setRotation(this.facingAngle);
-      }
-    }
+    // Главная правка: сортируем персонажа не по фактической высоте на рампе,
+    // а по текущему видимому этажу и точке ног. Тогда тайлы перед игроком
+    // перекрывают его, а тайлы позади остаются под ним.
+    const sortZ = this.renderZ ?? this.playerZ;
+    this.player.setDepth(depthForIso(this.playerGlobalX, this.playerGlobalY, sortZ, 55));
   }
 
   gridToWorld(gridX, gridY, z) {
