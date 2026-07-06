@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Zombie Iso Prototype</title>
+    <title>Zombie Iso Prototype v0.7.4</title>
 
     <style>
       :root {
@@ -199,8 +199,8 @@
           <button class="panel-btn" id="close-settings">Закрыть</button>
         </div>
         <div class="panel-note">
-          <span class="pill">v0.7.1</span>
-          Добавлена ходовая лестница-рампа: персонаж физически идёт по 4 тайлам вверх/вниз. Кнопочная лестница оставлена как вертикальная/пожарная.
+          <span class="pill">v0.7.4</span>
+          Масштаб: 1 тайл ≈ 1 метр, человек ≈ 1.8 м, этаж ≈ 3 м. Лестница-рампа 45° на 3 тайла, второй этаж видит первый этаж и улицу снизу.
         </div>
       </div>
     </div>
@@ -211,8 +211,14 @@
       const CHUNK_SIZE = 32;
       const MAP_OFFSET_X = 900;
       const MAP_OFFSET_Y = 70;
-      const FLOOR_HEIGHT_PX = 72;
-      const SETTINGS_KEY = "zombie_iso_ui_v072_ramps_visible";
+      const METERS_PER_TILE = 1;
+      const PX_PER_METER_Z = 28;
+      const PERSON_HEIGHT_M = 1.8;
+      const STOREY_HEIGHT_M = 3;
+      const PLAYER_HEIGHT_PX = Math.round(PERSON_HEIGHT_M * PX_PER_METER_Z);
+      const FLOOR_HEIGHT_PX = STOREY_HEIGHT_M * PX_PER_METER_Z;
+      const WALL_HEIGHT_PX = FLOOR_HEIGHT_PX;
+      const SETTINGS_KEY = "zombie_iso_ui_v074_scale_floor_visibility";
 
       const TileKind = {
         Void: -1,
@@ -613,7 +619,7 @@
           const chunk = this.getChunk(playerChunk.cx, playerChunk.cy);
           const fps = Math.round(this.game.loop.actualFps || 0);
           this.infoText.setText(
-            `v0.7.2 visible ramp test\n` +
+            `v0.7.4 scale + floor visibility\n` +
               `FPS: ${fps}\n` +
               `Z: ${this.playerZ}  (${this.getZLabel(this.playerZ)})\n` +
               `Chunk: ${playerChunk.cx}, ${playerChunk.cy}\n` +
@@ -632,12 +638,35 @@
 
         createPlayer() {
           this.player = this.add.container(0, 0);
-          const shadow = this.add.ellipse(0, 10, 30, 14, 0x000000, 0.35);
-          const body = this.add.circle(0, -8, 13, 0x2c6bd6, 1);
+
+          const shadow = this.add.ellipse(0, 8, 30, 14, 0x000000, 0.35);
+
+          // Масштаб теста: 1 тайл ≈ 1 м, человек ≈ 1.8 м.
+          // PLAYER_HEIGHT_PX не обязан быть фотореалистичным, но теперь связан с высотой этажа.
+          const bodyH = PLAYER_HEIGHT_PX * 0.62;
+          const bodyW = 18;
+          const bodyY = -PLAYER_HEIGHT_PX * 0.38;
+          const headR = Math.max(7, PLAYER_HEIGHT_PX * 0.15);
+          const headY = -PLAYER_HEIGHT_PX * 0.78;
+
+          const body = this.add.ellipse(0, bodyY, bodyW, bodyH, 0x2c6bd6, 1);
           body.setStrokeStyle(2, 0x102d63, 1);
-          const head = this.add.circle(0, -24, 8, 0xe2b887, 1);
+
+          const head = this.add.circle(0, headY, headR, 0xe2b887, 1);
           head.setStrokeStyle(2, 0x5b3a28, 1);
-          this.playerArrow = this.add.triangle(0, -8, 0, -7, 28, 0, 0, 7, 0xffdd66, 1);
+
+          this.playerArrow = this.add.triangle(
+            0,
+            -PLAYER_HEIGHT_PX * 0.32,
+            0,
+            -7,
+            28,
+            0,
+            0,
+            7,
+            0xffdd66,
+            1
+          );
           this.playerArrow.setStrokeStyle(2, 0x7a5a00, 1);
           this.player.add([shadow, body, head, this.playerArrow]);
         }
@@ -804,16 +833,18 @@
           z0.stairs.push({ x: downX, y: downY, label: "Подвал ↓", targetZ: -1, targetX: downX, targetY: downY, dir: "down" });
           basement.stairs.push({ x: downX, y: downY, label: "1 этаж ↑", targetZ: 0, targetX: downX, targetY: downY, dir: "up" });
 
-          // Ходовая лестница-рампа: 4 тайла длиной, подъём с 1 этажа на 2 этаж без кнопки.
+          // Ходовая лестница-рампа: 3 тайла длиной, 3 метра подъёма на 3 метра хода.
+          // На втором этаже в первых двух клетках лестницы нет пола: это отверстие под марш.
           const ramp = {
             x: b.x + 2,
             y: b.y + 6,
-            length: 4,
+            length: 3,
             width: 1,
             dir: "east",
             fromZ: 0,
             toZ: 1,
           };
+          this.paintRect(z1, ramp.x, ramp.y, 2, ramp.width, TileKind.Void);
           z0.ramps.push(ramp);
           z1.ramps.push(ramp);
         }
@@ -822,22 +853,27 @@
           const z0 = this.ensureLevel(chunk, 0, TileKind.Grass);
           const z1 = this.ensureLevel(chunk, 1, TileKind.Void);
 
-          // Яркий отдельный тест: ходовая лестница-рампа рядом со стартом.
-          // Она не спрятана внутри здания, чтобы сразу было видно, работает ли подъём ногами.
-          this.paintRect(z0, 10, 18, 8, 4, TileKind.Dirt);
-          this.paintRect(z1, 14, 18, 5, 4, TileKind.Concrete);
+          // Яркий отдельный тест: лестница-рампа 45° рядом со стартом.
+          // 1 тайл ≈ 1 метр, этаж ≈ 3 метра, значит марш занимает 3 тайла.
+          this.paintRect(z0, 9, 18, 10, 4, TileKind.Dirt);
 
           const ramp = {
             x: 10,
-            y: 18,
-            length: 4,
-            width: 2,
+            y: 19,
+            length: 3,
+            width: 1,
             dir: "east",
             fromZ: 0,
             toZ: 1,
-            label: "РАМПА ↑",
+            label: "ЛЕСТНИЦА 45° ↑",
             test: true,
           };
+
+          // Второй этаж: из трёх клеток лестничного марша первые две без пола,
+          // последняя клетка и площадка после марша имеют пол.
+          this.paintRect(z1, ramp.x, ramp.y, 2, ramp.width, TileKind.Void);
+          this.paintRect(z1, ramp.x + 2, ramp.y, 7, ramp.width, TileKind.Concrete);
+          this.paintRect(z1, ramp.x + 3, ramp.y - 1, 5, 3, TileKind.Concrete);
 
           z0.ramps.push(ramp);
           z1.ramps.push(ramp);
@@ -876,9 +912,25 @@
           const objects = [];
           this.loadedChunkObjects.set(key, objects);
           const chunk = this.getChunk(cx, cy);
-          const level = chunk.levels.get(this.playerZ);
 
-          if (!level) return;
+          // Когда игрок на верхнем этаже, нижний мир не исчезает:
+          // улица/трава/дороги и наружные стены первого этажа остаются видимыми снизу.
+          if (this.playerZ > 0) {
+            const baseLevel = chunk.levels.get(0);
+            if (baseLevel) this.drawLevel(objects, baseLevel, cx, cy, 0, "base");
+          }
+
+          const activeLevel = chunk.levels.get(this.playerZ);
+          if (!activeLevel) return;
+
+          this.drawLevel(objects, activeLevel, cx, cy, this.playerZ, "active");
+          this.drawRampsForLevel(objects, activeLevel, cx, cy);
+          this.drawStairsForLevel(objects, activeLevel, cx, cy);
+          this.drawChunkLabel(objects, chunk, cx, cy);
+        }
+
+        drawLevel(objects, level, cx, cy, z, mode) {
+          const isBase = mode === "base";
 
           for (let ly = 0; ly < CHUNK_SIZE; ly++) {
             for (let lx = 0; lx < CHUNK_SIZE; lx++) {
@@ -886,15 +938,12 @@
               if (kind === TileKind.Void) continue;
               const gx = cx * CHUNK_SIZE + lx + 0.5;
               const gy = cy * CHUNK_SIZE + ly + 0.5;
-              const world = this.gridToWorld(gx, gy, this.playerZ);
-              objects.push(this.drawGroundTile(world.x, world.y, kind, gx, gy));
+              const world = this.gridToWorld(gx, gy, z);
+              objects.push(this.drawGroundTile(world.x, world.y, kind, gx, gy, z, isBase));
             }
           }
 
-          this.drawAllWallsForLevel(objects, level, cx, cy);
-          this.drawRampsForLevel(objects, level, cx, cy);
-          this.drawStairsForLevel(objects, level, cx, cy);
-          this.drawChunkLabel(objects, chunk, cx, cy);
+          this.drawAllWallsForLevel(objects, level, cx, cy, z, isBase);
         }
 
         redrawLoadedChunks() {
@@ -902,15 +951,15 @@
           for (const [cx, cy] of existing) this.drawChunk(cx, cy);
         }
 
-        drawGroundTile(worldX, worldY, kind, globalX, globalY) {
+        drawGroundTile(worldX, worldY, kind, globalX, globalY, z = this.playerZ, isBase = false) {
           const g = this.add.graphics({ x: worldX, y: worldY });
           let color = 0x4f7f3a;
           if (kind === TileKind.Road) color = 0x565656;
           if (kind === TileKind.Floor) color = 0x8b785c;
           if (kind === TileKind.Dirt) color = 0x6f5a35;
           if (kind === TileKind.Concrete) color = 0x70757a;
-          g.fillStyle(color, 1);
-          g.lineStyle(1, 0x1e1e1e, 0.23);
+          g.fillStyle(color, isBase ? 0.82 : 1);
+          g.lineStyle(1, 0x1e1e1e, isBase ? 0.16 : 0.23);
           g.beginPath();
           g.moveTo(0, -TILE_H / 2);
           g.lineTo(TILE_W / 2, 0);
@@ -919,17 +968,17 @@
           g.closePath();
           g.fillPath();
           g.strokePath();
-          g.setDepth(globalX + globalY + this.playerZ * 10000);
+          g.setDepth(globalX + globalY + z * 10000 + (isBase ? -120 : 0));
           return g;
         }
 
-        drawAllWallsForLevel(objects, level, cx, cy) {
+        drawAllWallsForLevel(objects, level, cx, cy, z = this.playerZ, isBase = false) {
           for (let y = 0; y < CHUNK_SIZE + 1; y++) {
             for (let x = 0; x < CHUNK_SIZE; x++) {
               if (level.hWalls[y][x]) {
                 const gx = cx * CHUNK_SIZE + x;
                 const gy = cy * CHUNK_SIZE + y;
-                objects.push(this.drawWallSegment(gx, gy, gx + 1, gy));
+                objects.push(this.drawWallSegment(gx, gy, gx + 1, gy, z, isBase));
               }
             }
           }
@@ -938,19 +987,19 @@
               if (level.vWalls[y][x]) {
                 const gx = cx * CHUNK_SIZE + x;
                 const gy = cy * CHUNK_SIZE + y;
-                objects.push(this.drawWallSegment(gx, gy, gx, gy + 1));
+                objects.push(this.drawWallSegment(gx, gy, gx, gy + 1, z, isBase));
               }
             }
           }
         }
 
-        drawWallSegment(x1, y1, x2, y2) {
-          const p1 = this.gridToWorld(x1, y1, this.playerZ);
-          const p2 = this.gridToWorld(x2, y2, this.playerZ);
-          const h = 34;
+        drawWallSegment(x1, y1, x2, y2, z = this.playerZ, isBase = false) {
+          const p1 = this.gridToWorld(x1, y1, z);
+          const p2 = this.gridToWorld(x2, y2, z);
+          const h = WALL_HEIGHT_PX;
           const g = this.add.graphics();
-          g.fillStyle(this.playerZ === -1 ? 0x43484f : 0x5d5247, 1);
-          g.lineStyle(2, 0x241f1a, 0.75);
+          g.fillStyle(z === -1 ? 0x43484f : 0x5d5247, isBase ? 0.78 : 1);
+          g.lineStyle(2, 0x241f1a, isBase ? 0.48 : 0.75);
           g.beginPath();
           g.moveTo(p1.x, p1.y);
           g.lineTo(p2.x, p2.y);
@@ -959,9 +1008,9 @@
           g.closePath();
           g.fillPath();
           g.strokePath();
-          g.lineStyle(3, this.playerZ === -1 ? 0x7a8188 : 0x87796b, 0.95);
+          g.lineStyle(3, z === -1 ? 0x7a8188 : 0x87796b, isBase ? 0.55 : 0.95);
           g.lineBetween(p1.x, p1.y - h, p2.x, p2.y - h);
-          g.setDepth(x1 + y1 + this.playerZ * 10000 + 0.45);
+          g.setDepth(x1 + y1 + z * 10000 + (isBase ? -60 : 0.45));
           return g;
         }
 
@@ -1105,6 +1154,7 @@
 
         canMoveX(currentX, nextX, y) {
           const r = this.playerRadius;
+          if (!this.canMoveAcrossRamps(currentX, y, nextX, y)) return false;
           if (!this.isWalkableForPlayer(nextX, y)) return false;
           const sampleYs = [y - r, y, y + r];
           if (nextX > currentX) {
@@ -1125,6 +1175,7 @@
 
         canMoveY(currentY, nextY, x) {
           const r = this.playerRadius;
+          if (!this.canMoveAcrossRamps(x, currentY, x, nextY)) return false;
           if (!this.isWalkableForPlayer(x, nextY)) return false;
           const sampleXs = [x - r, x, x + r];
           if (nextY > currentY) {
@@ -1143,6 +1194,145 @@
           return true;
         }
 
+        canMoveAcrossRamps(currentX, currentY, nextX, nextY) {
+          // Рампа ведёт себя как коридор с невидимыми перилами.
+          // Войти можно только с нижнего торца, выйти только с верхнего торца.
+          // Середина рампы не принимает боковой вход/выход, иначе персонаж «запрыгивает» на верхнюю ступеньку.
+          const ramps = this.getNearbyRampsForCurrentLevel(currentX, currentY, nextX, nextY);
+          for (const ramp of ramps) {
+            const state = this.getRampMovementState(ramp, currentX, currentY, nextX, nextY);
+            if (!state.touchesRamp) continue;
+
+            if (state.currentInside && state.nextInside) continue;
+
+            const currentZIsFrom = this.playerZ === ramp.fromZ;
+            const currentZIsTo = this.playerZ === ramp.toZ;
+
+            if (state.currentInside && !state.nextInside) {
+              if (currentZIsFrom && state.crossesFromEnd) continue;
+              if (currentZIsTo && state.crossesToEnd) continue;
+              return false;
+            }
+
+            if (!state.currentInside && state.nextInside) {
+              if (currentZIsFrom && state.crossesFromEnd) continue;
+              if (currentZIsTo && state.crossesToEnd) continue;
+              return false;
+            }
+          }
+          return true;
+        }
+
+        getNearbyRampsForCurrentLevel(currentX, currentY, nextX, nextY) {
+          const locA = this.globalToLocal(currentX, currentY);
+          const locB = this.globalToLocal(nextX, nextY);
+          const minCx = Math.min(locA.cx, locB.cx) - 1;
+          const maxCx = Math.max(locA.cx, locB.cx) + 1;
+          const minCy = Math.min(locA.cy, locB.cy) - 1;
+          const maxCy = Math.max(locA.cy, locB.cy) + 1;
+          const ramps = [];
+          const seen = new Set();
+
+          for (let cy = minCy; cy <= maxCy; cy++) {
+            for (let cx = minCx; cx <= maxCx; cx++) {
+              const chunk = this.getChunk(cx, cy);
+              const level = chunk.levels.get(this.playerZ);
+              if (!level) continue;
+              for (let i = 0; i < (level.ramps || []).length; i++) {
+                const ramp = level.ramps[i];
+                if (this.playerZ !== ramp.fromZ && this.playerZ !== ramp.toZ) continue;
+                const id = `${cx},${cy},${i},${ramp.x},${ramp.y},${ramp.fromZ},${ramp.toZ}`;
+                if (seen.has(id)) continue;
+                seen.add(id);
+                ramps.push({ ...ramp, chunkX: cx, chunkY: cy });
+              }
+            }
+          }
+
+          return ramps;
+        }
+
+        getRampMovementState(ramp, currentX, currentY, nextX, nextY) {
+          const bounds = this.getRampGlobalBounds(ramp);
+          const eps = 0.035;
+          const currentInside = this.isPointInsideRampBounds(currentX, currentY, bounds, eps);
+          const nextInside = this.isPointInsideRampBounds(nextX, nextY, bounds, eps);
+
+          if (!currentInside && !nextInside) {
+            return { touchesRamp: false, currentInside, nextInside, crossesFromEnd: false, crossesToEnd: false };
+          }
+
+          const crossesFromEnd = this.crossesRampEnd(currentX, currentY, nextX, nextY, bounds, "from");
+          const crossesToEnd = this.crossesRampEnd(currentX, currentY, nextX, nextY, bounds, "to");
+          return { touchesRamp: true, currentInside, nextInside, crossesFromEnd, crossesToEnd };
+        }
+
+        getRampGlobalBounds(ramp) {
+          const gx = ramp.chunkX * CHUNK_SIZE + ramp.x;
+          const gy = ramp.chunkY * CHUNK_SIZE + ramp.y;
+          const len = ramp.length || 3;
+          const width = ramp.width || 1;
+
+          const minX = gx;
+          const minY = gy;
+          const maxX = gx + ((ramp.dir === "east" || ramp.dir === "west") ? len : width);
+          const maxY = gy + ((ramp.dir === "north" || ramp.dir === "south") ? len : width);
+
+          let fromEnd;
+          let toEnd;
+
+          if (ramp.dir === "east") {
+            fromEnd = { axis: "x", value: minX, minOther: minY, maxOther: maxY };
+            toEnd = { axis: "x", value: maxX, minOther: minY, maxOther: maxY };
+          } else if (ramp.dir === "west") {
+            fromEnd = { axis: "x", value: maxX, minOther: minY, maxOther: maxY };
+            toEnd = { axis: "x", value: minX, minOther: minY, maxOther: maxY };
+          } else if (ramp.dir === "south") {
+            fromEnd = { axis: "y", value: minY, minOther: minX, maxOther: maxX };
+            toEnd = { axis: "y", value: maxY, minOther: minX, maxOther: maxX };
+          } else {
+            fromEnd = { axis: "y", value: maxY, minOther: minX, maxOther: maxX };
+            toEnd = { axis: "y", value: minY, minOther: minX, maxOther: maxX };
+          }
+
+          return { minX, maxX, minY, maxY, fromEnd, toEnd };
+        }
+
+        isPointInsideRampBounds(x, y, bounds, eps = 0) {
+          return x >= bounds.minX - eps && x <= bounds.maxX + eps && y >= bounds.minY - eps && y <= bounds.maxY + eps;
+        }
+
+        crossesRampEnd(currentX, currentY, nextX, nextY, bounds, endName) {
+          const end = endName === "from" ? bounds.fromEnd : bounds.toEnd;
+          const eps = 0.035;
+          const crossesLine = (a, b, value) => {
+            if (Math.abs(a - b) < 0.0001) return false;
+            return Math.min(a, b) <= value + eps && Math.max(a, b) >= value - eps;
+          };
+
+          if (end.axis === "x") {
+            const otherNow = currentY;
+            const otherNext = nextY;
+            const otherInside =
+              otherNow >= end.minOther - eps &&
+              otherNow <= end.maxOther + eps &&
+              otherNext >= end.minOther - eps &&
+              otherNext <= end.maxOther + eps;
+            if (!otherInside) return false;
+            return crossesLine(currentX, nextX, end.value);
+          }
+
+          const otherNow = currentX;
+          const otherNext = nextX;
+          const otherInside =
+            otherNow >= end.minOther - eps &&
+            otherNow <= end.maxOther + eps &&
+            otherNext >= end.minOther - eps &&
+            otherNext <= end.maxOther + eps;
+          if (!otherInside) return false;
+          return crossesLine(currentY, nextY, end.value);
+        }
+
         isWalkableForPlayer(x, y) {
           const r = this.playerRadius;
           return (
@@ -1159,7 +1349,19 @@
           const level = chunk.levels.get(this.playerZ);
           if (!level) return false;
           if (!this.isInsideLocal(loc.lx, loc.ly)) return false;
-          return level.ground[loc.ly][loc.lx] !== TileKind.Void;
+          if (level.ground[loc.ly][loc.lx] !== TileKind.Void) return true;
+          // На втором этаже под лестницей может быть отверстие в полу.
+          // Рампа сама является ходовой поверхностью, поэтому внутри её коридора ходить можно.
+          return this.isPointOnRampForCurrentZ(globalX, globalY);
+        }
+
+        isPointOnRampForCurrentZ(globalX, globalY) {
+          const ramps = this.getNearbyRampsForCurrentLevel(globalX, globalY, globalX, globalY);
+          for (const ramp of ramps) {
+            const bounds = this.getRampGlobalBounds(ramp);
+            if (this.isPointInsideRampBounds(globalX, globalY, bounds, 0.02)) return true;
+          }
+          return false;
         }
 
         hasVerticalWallGlobal(xWall, tileY) {
@@ -1307,7 +1509,7 @@
           if (!this.player) return;
           const visualZ = this.getPlayerVisualZ();
           const world = this.gridToWorld(this.playerGlobalX, this.playerGlobalY, visualZ);
-          this.player.setPosition(world.x, world.y - 8);
+          this.player.setPosition(world.x, world.y - 3);
           this.player.setDepth(this.playerGlobalX + this.playerGlobalY + visualZ * 10000 + 0.7);
         }
 
