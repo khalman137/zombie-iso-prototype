@@ -199,8 +199,8 @@
           <button class="panel-btn" id="close-settings">Закрыть</button>
         </div>
         <div class="panel-note">
-          <span class="pill">v0.7</span>
-          Тест этажности: найди большое здание в центральном чанке. У лестниц появится кнопка действия: вверх / вниз / подвал.
+          <span class="pill">v0.7.1</span>
+          Добавлена ходовая лестница-рампа: персонаж физически идёт по 4 тайлам вверх/вниз. Кнопочная лестница оставлена как вертикальная/пожарная.
         </div>
       </div>
     </div>
@@ -212,7 +212,7 @@
       const MAP_OFFSET_X = 900;
       const MAP_OFFSET_Y = 70;
       const FLOOR_HEIGHT_PX = 72;
-      const SETTINGS_KEY = "zombie_iso_ui_v07_levels";
+      const SETTINGS_KEY = "zombie_iso_ui_v071_ramps";
 
       const TileKind = {
         Void: -1,
@@ -613,7 +613,7 @@
           const chunk = this.getChunk(playerChunk.cx, playerChunk.cy);
           const fps = Math.round(this.game.loop.actualFps || 0);
           this.infoText.setText(
-            `v0.7 floors / basement\n` +
+            `v0.7.1 ramps + ladder\n` +
               `FPS: ${fps}\n` +
               `Z: ${this.playerZ}  (${this.getZLabel(this.playerZ)})\n` +
               `Chunk: ${playerChunk.cx}, ${playerChunk.cy}\n` +
@@ -744,6 +744,7 @@
           const hWalls = [];
           const vWalls = [];
           const stairs = [];
+          const ramps = [];
           for (let y = 0; y < CHUNK_SIZE; y++) {
             const row = [];
             for (let x = 0; x < CHUNK_SIZE; x++) row.push(defaultKind);
@@ -759,7 +760,7 @@
             for (let x = 0; x < CHUNK_SIZE + 1; x++) row.push(false);
             vWalls.push(row);
           }
-          return { ground, hWalls, vWalls, stairs };
+          return { ground, hWalls, vWalls, stairs, ramps };
         }
 
         ensureLevel(chunk, z, defaultKind = TileKind.Void) {
@@ -791,15 +792,29 @@
           this.addBuildingToLevel(z1, { ...b, doorSide: null }, TileKind.Floor);
           this.addBuildingToLevel(basement, { ...b, doorSide: null }, TileKind.Concrete);
 
+          // Кнопочные переходы оставляем как вертикальную лестницу/пожарную лестницу/люк.
           const upX = b.x + 3.5;
-          const upY = b.y + 4.5;
+          const upY = b.y + 3.5;
           const downX = b.x + 5.5;
-          const downY = b.y + 4.5;
+          const downY = b.y + 3.5;
 
-          z0.stairs.push({ x: upX, y: upY, label: "2 этаж ↑", targetZ: 1, targetX: upX, targetY: upY, dir: "up" });
-          z1.stairs.push({ x: upX, y: upY, label: "1 этаж ↓", targetZ: 0, targetX: upX, targetY: upY, dir: "down" });
+          z0.stairs.push({ x: upX, y: upY, label: "Вертикально ↑", targetZ: 1, targetX: upX, targetY: upY, dir: "up" });
+          z1.stairs.push({ x: upX, y: upY, label: "Вертикально ↓", targetZ: 0, targetX: upX, targetY: upY, dir: "down" });
           z0.stairs.push({ x: downX, y: downY, label: "Подвал ↓", targetZ: -1, targetX: downX, targetY: downY, dir: "down" });
           basement.stairs.push({ x: downX, y: downY, label: "1 этаж ↑", targetZ: 0, targetX: downX, targetY: downY, dir: "up" });
+
+          // Ходовая лестница-рампа: 4 тайла длиной, подъём с 1 этажа на 2 этаж без кнопки.
+          const ramp = {
+            x: b.x + 2,
+            y: b.y + 6,
+            length: 4,
+            width: 1,
+            dir: "east",
+            fromZ: 0,
+            toZ: 1,
+          };
+          z0.ramps.push(ramp);
+          z1.ramps.push(ramp);
         }
 
         addPerimeterWalls(level, startX, startY, width, height, doorSide, doorOffset) {
@@ -851,6 +866,7 @@
           }
 
           this.drawAllWallsForLevel(objects, level, cx, cy);
+          this.drawRampsForLevel(objects, level, cx, cy);
           this.drawStairsForLevel(objects, level, cx, cy);
           this.drawChunkLabel(objects, chunk, cx, cy);
         }
@@ -923,6 +939,63 @@
           return g;
         }
 
+        drawRampsForLevel(objects, level, cx, cy) {
+          for (const ramp of level.ramps || []) {
+            const gx = cx * CHUNK_SIZE + ramp.x;
+            const gy = cy * CHUNK_SIZE + ramp.y;
+            const len = ramp.length || 3;
+            const w = ramp.width || 1;
+
+            let a, b, c, d;
+            if (ramp.dir === "east") {
+              a = this.gridToWorld(gx, gy, ramp.fromZ);
+              b = this.gridToWorld(gx + len, gy, ramp.toZ);
+              c = this.gridToWorld(gx + len, gy + w, ramp.toZ);
+              d = this.gridToWorld(gx, gy + w, ramp.fromZ);
+            } else if (ramp.dir === "west") {
+              a = this.gridToWorld(gx + len, gy, ramp.fromZ);
+              b = this.gridToWorld(gx, gy, ramp.toZ);
+              c = this.gridToWorld(gx, gy + w, ramp.toZ);
+              d = this.gridToWorld(gx + len, gy + w, ramp.fromZ);
+            } else {
+              a = this.gridToWorld(gx, gy, ramp.fromZ);
+              b = this.gridToWorld(gx + w, gy, ramp.fromZ);
+              c = this.gridToWorld(gx + w, gy + len, ramp.toZ);
+              d = this.gridToWorld(gx, gy + len, ramp.toZ);
+            }
+
+            const g = this.add.graphics();
+            g.fillStyle(0xb8904a, 0.95);
+            g.lineStyle(2, 0x2a2114, 0.85);
+            g.beginPath();
+            g.moveTo(a.x, a.y);
+            g.lineTo(b.x, b.y);
+            g.lineTo(c.x, c.y);
+            g.lineTo(d.x, d.y);
+            g.closePath();
+            g.fillPath();
+            g.strokePath();
+
+            g.lineStyle(2, 0x3a2b16, 0.55);
+            const steps = Math.max(3, len);
+            for (let i = 1; i < steps; i++) {
+              const t = i / steps;
+              const left = {
+                x: Phaser.Math.Linear(a.x, b.x, t),
+                y: Phaser.Math.Linear(a.y, b.y, t),
+              };
+              const right = {
+                x: Phaser.Math.Linear(d.x, c.x, t),
+                y: Phaser.Math.Linear(d.y, c.y, t),
+              };
+              g.lineBetween(left.x, left.y, right.x, right.y);
+            }
+
+            g.setDepth(gx + gy + Math.max(ramp.fromZ, ramp.toZ) * 10000 + 0.65);
+            objects.push(g);
+          }
+        }
+
         drawStairsForLevel(objects, level, cx, cy) {
           for (const stair of level.stairs) {
             const gx = cx * CHUNK_SIZE + stair.x;
@@ -975,6 +1048,7 @@
           const nextY = this.playerGlobalY + dir.y * speed;
           if (this.canMoveX(this.playerGlobalX, nextX, this.playerGlobalY)) this.playerGlobalX = nextX;
           if (this.canMoveY(this.playerGlobalY, nextY, this.playerGlobalX)) this.playerGlobalY = nextY;
+          this.handleRampElevation();
         }
 
         screenDirectionToGridDirection(screenX, screenY) {
@@ -1070,6 +1144,70 @@
           return level.hWalls[ly][lx];
         }
 
+        getCurrentRamp() {
+          const loc = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
+          const chunk = this.getChunk(loc.cx, loc.cy);
+          const level = chunk.levels.get(this.playerZ);
+          if (!level) return null;
+
+          for (const ramp of level.ramps || []) {
+            const lx = loc.x;
+            const ly = loc.y;
+            const len = ramp.length || 3;
+            const w = ramp.width || 1;
+            const insideEastWest =
+              (ramp.dir === "east" || ramp.dir === "west") &&
+              lx >= ramp.x - 0.08 &&
+              lx <= ramp.x + len + 0.08 &&
+              ly >= ramp.y - 0.18 &&
+              ly <= ramp.y + w + 0.18;
+            const insideNorthSouth =
+              (ramp.dir === "north" || ramp.dir === "south") &&
+              lx >= ramp.x - 0.18 &&
+              lx <= ramp.x + w + 0.18 &&
+              ly >= ramp.y - 0.08 &&
+              ly <= ramp.y + len + 0.08;
+
+            if (!insideEastWest && !insideNorthSouth) continue;
+            if (this.playerZ !== ramp.fromZ && this.playerZ !== ramp.toZ) continue;
+            return { ...ramp, chunkX: loc.cx, chunkY: loc.cy };
+          }
+          return null;
+        }
+
+        getRampProgress(ramp) {
+          const loc = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
+          const len = ramp.length || 3;
+          let progress = 0;
+          if (ramp.dir === "east") progress = (loc.x - ramp.x) / len;
+          else if (ramp.dir === "west") progress = 1 - (loc.x - ramp.x) / len;
+          else if (ramp.dir === "south") progress = (loc.y - ramp.y) / len;
+          else if (ramp.dir === "north") progress = 1 - (loc.y - ramp.y) / len;
+          return Phaser.Math.Clamp(progress, 0, 1);
+        }
+
+        getPlayerVisualZ() {
+          const ramp = this.getCurrentRamp();
+          if (!ramp) return this.playerZ;
+          const progress = this.getRampProgress(ramp);
+          return Phaser.Math.Linear(ramp.fromZ, ramp.toZ, progress);
+        }
+
+        handleRampElevation() {
+          const ramp = this.getCurrentRamp();
+          if (!ramp) return;
+          const progress = this.getRampProgress(ramp);
+          if (this.playerZ === ramp.fromZ && progress >= 0.965) {
+            this.playerZ = ramp.toZ;
+            this.redrawLoadedChunks();
+            this.syncPlayerWorldPosition();
+          } else if (this.playerZ === ramp.toZ && progress <= 0.035) {
+            this.playerZ = ramp.fromZ;
+            this.redrawLoadedChunks();
+            this.syncPlayerWorldPosition();
+          }
+        }
+
         updateNearbyAction() {
           const action = this.findNearbyStair();
           this.nearAction = action;
@@ -1125,9 +1263,10 @@
 
         syncPlayerWorldPosition() {
           if (!this.player) return;
-          const world = this.gridToWorld(this.playerGlobalX, this.playerGlobalY, this.playerZ);
+          const visualZ = this.getPlayerVisualZ();
+          const world = this.gridToWorld(this.playerGlobalX, this.playerGlobalY, visualZ);
           this.player.setPosition(world.x, world.y - 8);
-          this.player.setDepth(this.playerGlobalX + this.playerGlobalY + this.playerZ * 10000 + 0.7);
+          this.player.setDepth(this.playerGlobalX + this.playerGlobalY + visualZ * 10000 + 0.7);
         }
 
         gridToWorld(gridX, gridY, z) {
