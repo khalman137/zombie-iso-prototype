@@ -2,13 +2,17 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=no"
-    />
-    <title>Zombie Iso Prototype v0.5 Static World Data</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Zombie Iso Prototype</title>
 
     <style>
+      :root {
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-right: env(safe-area-inset-right, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-left: env(safe-area-inset-left, 0px);
+      }
+
       html,
       body {
         margin: 0;
@@ -19,127 +23,143 @@
         background: #111;
         touch-action: none;
         user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
       }
 
       #game {
+        position: fixed;
+        inset: 0;
         width: 100vw;
         height: 100vh;
         overflow: hidden;
+        background: #111;
       }
 
       canvas {
         display: block;
       }
 
-      #game {
+      #dom-ui {
         position: fixed;
         inset: 0;
-        z-index: 1;
+        z-index: 2147483000;
+        pointer-events: none;
+        font-family: Arial, sans-serif;
       }
 
-      .dom-ui-button {
-        position: fixed;
-        right: max(12px, env(safe-area-inset-right));
-        top: 50%;
-        transform: translateY(-50%);
-        z-index: 2147483000;
+      .dom-button {
         pointer-events: auto;
-        width: 52px;
-        height: 52px;
-        border-radius: 16px;
-        border: 1px solid rgba(255,255,255,0.28);
-        background: rgba(20, 20, 20, 0.66);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        background: rgba(12, 12, 12, 0.72);
         color: #fff;
-        font-size: 28px;
-        line-height: 52px;
-        text-align: center;
+        border-radius: 14px;
+        min-width: 46px;
+        min-height: 42px;
+        padding: 8px 12px;
+        font-size: 18px;
+        font-weight: 700;
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
         backdrop-filter: blur(7px);
         -webkit-backdrop-filter: blur(7px);
         touch-action: manipulation;
       }
 
-      .dom-settings-panel {
-        position: fixed;
+      .dom-button:active {
+        transform: scale(0.96);
+        background: rgba(255, 255, 255, 0.18);
+      }
+
+      #settings-btn {
+        position: absolute;
+        right: calc(10px + var(--safe-right));
+        top: 50%;
+        transform: translateY(-50%);
+        width: 48px;
+        height: 48px;
+        padding: 0;
+        border-radius: 16px;
+        font-size: 23px;
+      }
+
+      #action-btn {
+        position: absolute;
+        left: 50%;
+        bottom: calc(128px + var(--safe-bottom));
+        transform: translateX(-50%);
+        display: none;
+        min-width: 116px;
+        font-size: 16px;
+      }
+
+      #settings-panel {
+        position: absolute;
         left: 50%;
         top: 50%;
         transform: translate(-50%, -50%);
-        z-index: 2147483001;
-        pointer-events: auto;
-        width: min(620px, calc(100vw - 32px));
-        max-height: min(74vh, 420px);
-        overflow: auto;
-        box-sizing: border-box;
-        padding: 14px;
-        border-radius: 18px;
-        border: 1px solid rgba(255,255,255,0.22);
-        background: rgba(0, 0, 0, 0.82);
-        color: #fff;
-        font-family: Arial, sans-serif;
-        backdrop-filter: blur(9px);
-        -webkit-backdrop-filter: blur(9px);
-        touch-action: manipulation;
-      }
-
-      .dom-settings-panel.hidden {
+        width: min(92vw, 430px);
+        max-height: min(82vh, 560px);
+        overflow-y: auto;
         display: none;
-      }
-
-      .dom-settings-title {
-        font-size: 20px;
-        font-weight: 700;
-        margin-bottom: 4px;
-      }
-
-      .dom-settings-note {
-        font-size: 12px;
-        color: rgba(255,255,255,0.72);
-        margin-bottom: 12px;
-      }
-
-      .dom-settings-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 8px;
-      }
-
-      .dom-settings-panel button {
-        min-height: 44px;
-        border: 0;
-        border-radius: 12px;
-        background: rgba(255,255,255,0.16);
+        pointer-events: auto;
         color: #fff;
-        font-size: 14px;
-        font-family: Arial, sans-serif;
+        background: rgba(12, 12, 12, 0.88);
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        border-radius: 18px;
+        box-shadow: 0 12px 42px rgba(0, 0, 0, 0.58);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        padding: 14px;
+        box-sizing: border-box;
         touch-action: manipulation;
       }
 
-      .dom-settings-panel button:active,
-      .dom-ui-button:active {
-        transform: scale(0.96);
-        opacity: 0.82;
+      #settings-panel h2 {
+        margin: 0 0 10px;
+        font-size: 19px;
       }
 
-      .dom-ui-button:active {
-        transform: translateY(-50%) scale(0.96);
+      .panel-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin: 8px 0;
       }
 
-      @media (orientation: portrait) {
-        .dom-ui-button {
-          top: auto;
-          right: max(14px, env(safe-area-inset-right));
-          bottom: calc(48% + env(safe-area-inset-bottom));
-          transform: none;
-        }
-
-        .dom-ui-button:active {
-          transform: scale(0.96);
-        }
-
-        .dom-settings-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
+      .panel-row.single {
+        grid-template-columns: 1fr;
       }
 
+      .panel-btn {
+        pointer-events: auto;
+        min-height: 42px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        touch-action: manipulation;
+      }
+
+      .panel-btn:active {
+        transform: scale(0.98);
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      .panel-note {
+        margin-top: 10px;
+        font-size: 12px;
+        line-height: 1.35;
+        color: rgba(255, 255, 255, 0.72);
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.14);
+      }
     </style>
 
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -148,63 +168,161 @@
 
   <body>
     <div id="game"></div>
-    <button id="dom-ui-button" class="dom-ui-button" type="button">⚙</button>
-    <div id="dom-settings-panel" class="dom-settings-panel hidden">
-      <div class="dom-settings-title">Настройки</div>
-      <div class="dom-settings-note">Готовый тестовый мир из данных. Генерации домов нет, дальше генерируем только лут и зомби.</div>
-      <div class="dom-settings-grid">
-        <button id="dom-debug" type="button">Debug: выкл</button>
-        <button id="dom-nudge" type="button">Сдвиг 1 тайл</button>
-        <button id="dom-close" type="button">Закрыть</button>
-        <button id="dom-up" type="button">Стики ↑</button>
-        <button id="dom-down" type="button">Стики ↓</button>
-        <button id="dom-reset-ui" type="button">Сброс UI</button>
-        <button id="dom-center" type="button">К центру +</button>
-        <button id="dom-edge" type="button">К краям -</button>
-        <button id="dom-size-plus" type="button">Размер +</button>
-        <button id="dom-size-minus" type="button">Размер -</button>
-        <button id="dom-bright" type="button">Ярче</button>
-        <button id="dom-fade" type="button">Бледнее</button>
+
+    <div id="dom-ui">
+      <button id="settings-btn" class="dom-button" aria-label="Настройки">⚙</button>
+      <button id="action-btn" class="dom-button" aria-label="Действие">Действие</button>
+
+      <div id="settings-panel">
+        <h2>Настройки</h2>
+        <div class="panel-row">
+          <button class="panel-btn" id="stick-up">Стики ↑</button>
+          <button class="panel-btn" id="stick-down">Стики ↓</button>
+        </div>
+        <div class="panel-row">
+          <button class="panel-btn" id="stick-in">Ближе к центру</button>
+          <button class="panel-btn" id="stick-out">К краям</button>
+        </div>
+        <div class="panel-row">
+          <button class="panel-btn" id="stick-bigger">Стики +</button>
+          <button class="panel-btn" id="stick-smaller">Стики −</button>
+        </div>
+        <div class="panel-row">
+          <button class="panel-btn" id="stick-more">Ярче</button>
+          <button class="panel-btn" id="stick-less">Прозрачнее</button>
+        </div>
+        <div class="panel-row">
+          <button class="panel-btn" id="debug-toggle">Debug</button>
+          <button class="panel-btn" id="step-tile">Сдвиг 1 тайл</button>
+        </div>
+        <div class="panel-row single">
+          <button class="panel-btn" id="close-settings">Закрыть</button>
+        </div>
+        <div class="panel-note">
+          <span class="pill">v0.7</span>
+          Тест этажности: найди большое здание в центральном чанке. У лестниц появится кнопка действия: вверх / вниз / подвал.
+        </div>
       </div>
     </div>
 
     <script>
       const TILE_W = 64;
       const TILE_H = 32;
-
       const CHUNK_SIZE = 32;
-      const LOAD_RADIUS = 1; // 1 = 3×3 чанка вокруг игрока
-
-      const WORLD_OFFSET_X = 900;
-      const WORLD_OFFSET_Y = 70;
+      const MAP_OFFSET_X = 900;
+      const MAP_OFFSET_Y = 70;
+      const FLOOR_HEIGHT_PX = 72;
+      const SETTINGS_KEY = "zombie_iso_ui_v07_levels";
 
       const TileKind = {
+        Void: -1,
         Grass: 0,
         Road: 1,
         Floor: 2,
         Dirt: 3,
+        Concrete: 4,
       };
-
-      const UI_STORAGE_KEY = "zombie_iso_ui_v05";
 
       const DEFAULT_UI_SETTINGS = {
-        // stickXFactor: больше значение = стики ближе к центру.
-        stickXFactor: 0.24,
-        // stickYFactor: больше значение = стики выше от нижнего края.
-        stickYFactor: 0.3,
-        stickRadius: 58,
-        stickOpacity: 0.9,
-        debugVisible: false,
-        playMode: true,
+        stickCenterOffset: 0.22,
+        stickBottomOffset: 0.24,
+        stickRadius: 56,
+        stickAlpha: 0.34,
+        debug: false,
       };
 
-      function clamp(value, min, max) {
-        return Math.max(min, Math.min(max, value));
-      }
+      const WORLD_DATA = {
+        "-1,-1": {
+          name: "Северо-западная окраина",
+          roads: [{ x: 14, y: 0, w: 4, h: 32 }],
+          dirt: [{ x: 4, y: 18, w: 8, h: 6 }],
+          buildings: [{ x: 19, y: 6, w: 7, h: 6, doorSide: "south", doorOffset: 3 }],
+        },
+        "0,-1": {
+          name: "Северная дорога",
+          roads: [
+            { x: 14, y: 0, w: 4, h: 32 },
+            { x: 0, y: 16, w: 32, h: 3 },
+          ],
+          buildings: [
+            { x: 5, y: 5, w: 8, h: 6, doorSide: "south", doorOffset: 4 },
+            { x: 21, y: 21, w: 7, h: 7, doorSide: "north", doorOffset: 3 },
+          ],
+        },
+        "1,-1": {
+          name: "Северо-восточная улица",
+          roads: [
+            { x: 0, y: 16, w: 32, h: 3 },
+            { x: 9, y: 0, w: 4, h: 21 },
+          ],
+          buildings: [{ x: 18, y: 7, w: 9, h: 7, doorSide: "south", doorOffset: 4 }],
+        },
+        "-1,0": {
+          name: "Западный двор",
+          roads: [{ x: 0, y: 14, w: 32, h: 4 }],
+          dirt: [{ x: 6, y: 5, w: 10, h: 7 }],
+          buildings: [
+            { x: 20, y: 19, w: 8, h: 7, doorSide: "north", doorOffset: 4 },
+            { x: 5, y: 20, w: 7, h: 6, doorSide: "north", doorOffset: 3 },
+          ],
+        },
+        "0,0": {
+          name: "Центр: тестовое здание",
+          roads: [
+            { x: 0, y: 14, w: 32, h: 4 },
+            { x: 14, y: 0, w: 4, h: 32 },
+          ],
+          buildings: [
+            { x: 4, y: 5, w: 8, h: 6, doorSide: "south", doorOffset: 3 },
+            { x: 20, y: 6, w: 9, h: 9, doorSide: "south", doorOffset: 4, tower: true },
+            { x: 5, y: 21, w: 8, h: 7, doorSide: "north", doorOffset: 4 },
+          ],
+        },
+        "1,0": {
+          name: "Восточная улица и магазин",
+          roads: [
+            { x: 0, y: 14, w: 32, h: 4 },
+            { x: 10, y: 0, w: 4, h: 32 },
+          ],
+          buildings: [
+            { x: 18, y: 5, w: 10, h: 8, doorSide: "south", doorOffset: 4, shop: true },
+            { x: 4, y: 21, w: 8, h: 7, doorSide: "north", doorOffset: 3 },
+          ],
+        },
+        "-1,1": {
+          name: "Юго-западный пустырь",
+          roads: [{ x: 14, y: 0, w: 4, h: 32 }],
+          dirt: [
+            { x: 3, y: 4, w: 11, h: 9 },
+            { x: 18, y: 19, w: 9, h: 7 },
+          ],
+          buildings: [{ x: 4, y: 22, w: 8, h: 6, doorSide: "north", doorOffset: 3 }],
+        },
+        "0,1": {
+          name: "Южная дорога",
+          roads: [
+            { x: 14, y: 0, w: 4, h: 32 },
+            { x: 0, y: 12, w: 32, h: 4 },
+          ],
+          buildings: [
+            { x: 21, y: 20, w: 8, h: 7, doorSide: "north", doorOffset: 4 },
+            { x: 4, y: 5, w: 7, h: 7, doorSide: "south", doorOffset: 3 },
+          ],
+        },
+        "1,1": {
+          name: "Юго-восточный склад",
+          roads: [
+            { x: 0, y: 12, w: 32, h: 4 },
+            { x: 10, y: 0, w: 4, h: 32 },
+          ],
+          dirt: [{ x: 18, y: 18, w: 10, h: 8 }],
+          buildings: [{ x: 18, y: 5, w: 10, h: 8, doorSide: "south", doorOffset: 5, shop: true }],
+        },
+      };
 
       function loadUiSettings() {
         try {
-          const raw = localStorage.getItem(UI_STORAGE_KEY);
+          const raw = localStorage.getItem(SETTINGS_KEY);
           if (!raw) return { ...DEFAULT_UI_SETTINGS };
           return { ...DEFAULT_UI_SETTINGS, ...JSON.parse(raw) };
         } catch (error) {
@@ -214,266 +332,80 @@
 
       function saveUiSettings(settings) {
         try {
-          localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(settings));
-        } catch (error) {
-          console.log("UI settings save skipped:", error);
-        }
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        } catch (error) {}
       }
 
-      const IS_TELEGRAM =
-        Boolean(window.Telegram) && Boolean(window.Telegram.WebApp);
+      function bindPress(element, handler) {
+        let last = 0;
+        const wrapped = (event) => {
+          const now = Date.now();
+          if (now - last < 160) return;
+          last = now;
+          event.preventDefault();
+          event.stopPropagation();
+          handler(event);
+        };
+        element.addEventListener("pointerup", wrapped, { passive: false });
+        element.addEventListener("touchend", wrapped, { passive: false });
+        element.addEventListener("click", wrapped, { passive: false });
+      }
 
-      function initTelegramMiniApp() {
-        if (!IS_TELEGRAM) return;
-
-        const tg = window.Telegram.WebApp;
-
+      function setupTelegram() {
+        const tg = window.Telegram && window.Telegram.WebApp;
+        if (!tg) return;
         try {
           tg.ready();
           tg.expand();
-
-          if (tg.setHeaderColor) tg.setHeaderColor("#111111");
-          if (tg.setBackgroundColor) tg.setBackgroundColor("#111111");
-          if (tg.setBottomBarColor) tg.setBottomBarColor("#111111");
-
-          // В игре вертикальные свайпы могут конфликтовать со стиками.
           if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
-
-          // В новых клиентах Telegram Mini Apps поддерживают fullscreen.
-          // Если метод недоступен, просто играем в обычном окне.
           if (tg.requestFullscreen) tg.requestFullscreen();
-        } catch (error) {
-          console.log("Telegram init skipped:", error);
-        }
-      }
-
-      initTelegramMiniApp();
-
-      function floorDiv(value, size) {
-        return Math.floor(value / size);
-      }
-
-      function positiveMod(value, mod) {
-        return ((value % mod) + mod) % mod;
+        } catch (error) {}
       }
 
       function chunkKey(cx, cy) {
         return `${cx},${cy}`;
       }
 
-
-
-      // v0.5: тестовый готовый мир. Домики/дороги/магазины описаны данными,
-      // а не процедурной генерацией. В будущей версии это можно вынести в JSON.
-      const WORLD_DATA = {
-        "-1,-1": {
-          label: "Северо-западный тихий квартал",
-          roads: [
-            { x: 0, y: 14, w: 32, h: 4 },
-            { x: 22, y: 0, w: 3, h: 18 }
-          ],
-          dirt: [
-            { x: 3, y: 22, w: 7, h: 5 },
-            { x: 15, y: 4, w: 5, h: 4 }
-          ],
-          buildings: [
-            { x: 4, y: 4, w: 8, h: 6, doorSide: "south", doorOffset: 4 },
-            { x: 15, y: 21, w: 9, h: 7, doorSide: "north", doorOffset: 4 }
-          ]
-        },
-
-        "0,-1": {
-          label: "Северная дорога",
-          roads: [
-            { x: 14, y: 0, w: 4, h: 32 },
-            { x: 0, y: 22, w: 32, h: 3 }
-          ],
-          dirt: [
-            { x: 3, y: 3, w: 6, h: 5 },
-            { x: 21, y: 7, w: 7, h: 4 }
-          ],
-          buildings: [
-            { x: 3, y: 11, w: 8, h: 6, doorSide: "east", doorOffset: 3 },
-            { x: 20, y: 15, w: 8, h: 7, doorSide: "west", doorOffset: 4 }
-          ]
-        },
-
-        "1,-1": {
-          label: "Северный магазин",
-          roads: [
-            { x: 0, y: 22, w: 32, h: 3 },
-            { x: 8, y: 0, w: 3, h: 25 }
-          ],
-          dirt: [
-            { x: 16, y: 3, w: 12, h: 8 }
-          ],
-          buildings: [
-            { x: 16, y: 11, w: 11, h: 8, doorSide: "south", doorOffset: 5 },
-            { x: 3, y: 3, w: 6, h: 6, doorSide: "south", doorOffset: 3 }
-          ]
-        },
-
-        "-1,0": {
-          label: "Западная улица",
-          roads: [
-            { x: 0, y: 14, w: 32, h: 4 },
-            { x: 6, y: 0, w: 3, h: 32 }
-          ],
-          dirt: [
-            { x: 12, y: 4, w: 8, h: 5 },
-            { x: 18, y: 22, w: 8, h: 5 }
-          ],
-          buildings: [
-            { x: 12, y: 5, w: 8, h: 6, doorSide: "south", doorOffset: 4 },
-            { x: 20, y: 20, w: 7, h: 7, doorSide: "north", doorOffset: 3 }
-          ]
-        },
-
-        "0,0": {
-          label: "Центральный перекрёсток",
-          roads: [
-            { x: 0, y: 14, w: 32, h: 4 },
-            { x: 14, y: 0, w: 4, h: 32 },
-            { x: 18, y: 24, w: 10, h: 2 }
-          ],
-          dirt: [
-            { x: 2, y: 24, w: 7, h: 4 },
-            { x: 21, y: 2, w: 6, h: 5 }
-          ],
-          buildings: [
-            { x: 4, y: 5, w: 8, h: 6, doorSide: "south", doorOffset: 3 },
-            { x: 21, y: 20, w: 7, h: 7, doorSide: "north", doorOffset: 3 }
-          ]
-        },
-
-        "1,0": {
-          label: "Восточная улица с магазином",
-          roads: [
-            { x: 0, y: 14, w: 32, h: 4 },
-            { x: 10, y: 0, w: 4, h: 18 },
-            { x: 14, y: 26, w: 18, h: 3 }
-          ],
-          dirt: [
-            { x: 17, y: 4, w: 12, h: 8 },
-            { x: 3, y: 22, w: 7, h: 4 }
-          ],
-          buildings: [
-            { x: 18, y: 5, w: 10, h: 8, doorSide: "south", doorOffset: 4 },
-            { x: 4, y: 20, w: 7, h: 7, doorSide: "north", doorOffset: 3 }
-          ]
-        },
-
-        "-1,1": {
-          label: "Юго-западный пустырь",
-          roads: [
-            { x: 6, y: 0, w: 3, h: 32 },
-            { x: 0, y: 6, w: 32, h: 3 }
-          ],
-          dirt: [
-            { x: 12, y: 12, w: 14, h: 10 },
-            { x: 2, y: 22, w: 9, h: 5 }
-          ],
-          buildings: [
-            { x: 18, y: 22, w: 8, h: 6, doorSide: "west", doorOffset: 3 }
-          ]
-        },
-
-        "0,1": {
-          label: "Южная улица",
-          roads: [
-            { x: 14, y: 0, w: 4, h: 32 },
-            { x: 0, y: 6, w: 32, h: 3 }
-          ],
-          dirt: [
-            { x: 3, y: 15, w: 8, h: 6 },
-            { x: 20, y: 3, w: 7, h: 5 }
-          ],
-          buildings: [
-            { x: 5, y: 18, w: 9, h: 7, doorSide: "east", doorOffset: 3 },
-            { x: 20, y: 4, w: 8, h: 6, doorSide: "south", doorOffset: 4 }
-          ]
-        },
-
-        "1,1": {
-          label: "Юго-восточный склад",
-          roads: [
-            { x: 0, y: 6, w: 32, h: 3 },
-            { x: 14, y: 0, w: 4, h: 32 }
-          ],
-          dirt: [
-            { x: 4, y: 13, w: 12, h: 7 },
-            { x: 20, y: 20, w: 8, h: 5 }
-          ],
-          buildings: [
-            { x: 5, y: 13, w: 11, h: 8, doorSide: "north", doorOffset: 5 },
-            { x: 21, y: 18, w: 7, h: 7, doorSide: "west", doorOffset: 3 }
-          ]
-        }
-      };
-
-      function hashInt(x, y) {
-        let h = 2166136261;
-        h ^= x + 374761393;
-        h = Math.imul(h, 16777619);
-        h ^= y + 668265263;
-        h = Math.imul(h, 16777619);
-        h ^= h >>> 13;
-        h = Math.imul(h, 1274126177);
-        return h >>> 0;
+      function floorDiv(value, size) {
+        return Math.floor(value / size);
       }
 
-      function mulberry32(seed) {
-        return function () {
-          let t = (seed += 0x6d2b79f5);
-          t = Math.imul(t ^ (t >>> 15), t | 1);
-          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
+      function positiveMod(value, size) {
+        return ((value % size) + size) % size;
       }
 
       class VirtualStick {
         constructor(scene, side) {
           this.scene = scene;
           this.side = side;
-
           this.centerX = 0;
           this.centerY = 0;
-
           this.valueX = 0;
           this.valueY = 0;
           this.strength = 0;
-
-          this.radius = 56;
-          this.knobRadius = 22;
           this.activePointerId = null;
-          this.settings = scene.uiSettings || DEFAULT_UI_SETTINGS;
-          this.applySettingsValues();
-
           this.graphics = scene.add.graphics();
           this.graphics.setScrollFactor(0);
           this.graphics.setDepth(100000);
-
           this.layout();
-
           scene.input.on("pointerdown", this.onPointerDown, this);
           scene.input.on("pointermove", this.onPointerMove, this);
           scene.input.on("pointerup", this.onPointerUp, this);
           scene.input.on("pointerupoutside", this.onPointerUp, this);
           scene.scale.on("resize", this.onResize, this);
-
           this.draw();
         }
 
-        applySettingsValues() {
-          this.settings = this.scene.uiSettings || DEFAULT_UI_SETTINGS;
-          this.radius = clamp(this.settings.stickRadius, 40, 90);
-          this.knobRadius = Math.max(16, Math.round(this.radius * 0.39));
+        get radius() {
+          return this.scene.uiSettings.stickRadius;
         }
 
-        refreshFromSettings() {
-          this.applySettingsValues();
-          this.layout();
-          this.reset();
+        get knobRadius() {
+          return Math.max(16, this.radius * 0.39);
+        }
+
+        get alpha() {
+          return Phaser.Math.Clamp(this.scene.uiSettings.stickAlpha, 0.08, 0.7);
         }
 
         onResize() {
@@ -484,20 +416,20 @@
         layout() {
           const w = this.scene.scale.width;
           const h = this.scene.scale.height;
+          const sideOffset = Phaser.Math.Clamp(this.scene.uiSettings.stickCenterOffset, 0.13, 0.34);
+          const bottomOffset = Phaser.Math.Clamp(this.scene.uiSettings.stickBottomOffset, 0.14, 0.36);
+          this.centerY = h - Math.max(72, h * bottomOffset);
+          this.centerX = this.side === "left" ? w * sideOffset : w * (1 - sideOffset);
+        }
 
-          // marginX = расстояние от края экрана: больше значение = ближе к центру.
-          // marginY = расстояние от нижнего края: больше значение = выше.
-          const marginX = clamp(w * this.settings.stickXFactor, 82, w * 0.38);
-          const marginY = clamp(h * this.settings.stickYFactor, 92, h * 0.46);
-
-          this.centerY = h - marginY;
-          this.centerX = this.side === "left" ? marginX : w - marginX;
+        refreshLayout() {
+          this.layout();
+          this.draw();
         }
 
         onPointerDown(pointer) {
           if (this.activePointerId !== null) return;
           if (!this.isPointerInZone(pointer)) return;
-
           this.activePointerId = pointer.id;
           this.updateFromPointer(pointer);
         }
@@ -515,22 +447,16 @@
         isPointerInZone(pointer) {
           const w = this.scene.scale.width;
           const h = this.scene.scale.height;
-
-          const isBottom = pointer.y > h * 0.45;
-          const isLeftSide = pointer.x < w * 0.5;
-          const isRightSide = pointer.x >= w * 0.5;
-
-          if (this.side === "left") return isBottom && isLeftSide;
-          return isBottom && isRightSide;
+          const isBottom = pointer.y > h * 0.38;
+          if (this.side === "left") return isBottom && pointer.x < w * 0.5;
+          return isBottom && pointer.x >= w * 0.5;
         }
 
         updateFromPointer(pointer) {
           const dx = pointer.x - this.centerX;
           const dy = pointer.y - this.centerY;
-
           const distance = Math.hypot(dx, dy);
           const clampedDistance = Math.min(distance, this.radius);
-
           if (distance <= 0.001) {
             this.valueX = 0;
             this.valueY = 0;
@@ -538,14 +464,11 @@
             this.draw();
             return;
           }
-
           const nx = dx / distance;
           const ny = dy / distance;
-
           this.valueX = nx * (clampedDistance / this.radius);
           this.valueY = ny * (clampedDistance / this.radius);
           this.strength = clampedDistance / this.radius;
-
           this.draw();
         }
 
@@ -560,207 +483,114 @@
         draw() {
           const g = this.graphics;
           g.clear();
-
           const knobX = this.centerX + this.valueX * this.radius;
           const knobY = this.centerY + this.valueY * this.radius;
-
-          const opacity = clamp(this.settings.stickOpacity, 0.25, 1);
-
-          g.lineStyle(3, 0xffffff, 0.35 * opacity);
-          g.fillStyle(0xffffff, 0.1 * opacity);
+          g.lineStyle(3, 0xffffff, this.alpha);
+          g.fillStyle(0xffffff, this.alpha * 0.28);
           g.fillCircle(this.centerX, this.centerY, this.radius);
           g.strokeCircle(this.centerX, this.centerY, this.radius);
-
-          g.fillStyle(0xffffff, 0.28 * opacity);
+          g.fillStyle(0xffffff, this.alpha * 0.74);
           g.fillCircle(knobX, knobY, this.knobRadius);
-
-          g.lineStyle(2, 0xffffff, 0.22 * opacity);
+          g.lineStyle(2, 0xffffff, this.alpha * 0.55);
           g.lineBetween(this.centerX, this.centerY, knobX, knobY);
         }
-      }
-
-      function setupDomUi(scene) {
-        const uiButton = document.getElementById("dom-ui-button");
-        const panel = document.getElementById("dom-settings-panel");
-        const debugButton = document.getElementById("dom-debug");
-
-        if (!uiButton || !panel) return;
-
-        // В Telegram WebView обычный click иногда не рождается,
-        // особенно если до него был preventDefault на touch/pointer.
-        // Поэтому все UI-кнопки активируются напрямую на pointerup/touchend/click,
-        // с защитой от двойного срабатывания.
-        const consume = (event) => {
-          if (!event) return;
-          if (event.cancelable) event.preventDefault();
-          event.stopPropagation();
-        };
-
-        const activate = (el, callback) => {
-          if (!el) return;
-          let lastActivationAt = 0;
-
-          const run = (event) => {
-            consume(event);
-
-            const now = Date.now();
-            if (now - lastActivationAt < 260) return;
-            lastActivationAt = now;
-
-            callback();
-            updateDebugButton();
-          };
-
-          // pointerup обычно лучший вариант: пользователь уже точно нажал кнопку,
-          // а не просто начал жест.
-          el.addEventListener("pointerup", run, { passive: false });
-          el.addEventListener("touchend", run, { passive: false });
-          el.addEventListener("click", run, { passive: false });
-
-          // А вот pointerdown/touchstart только гасим, чтобы Phaser не считал это стиком.
-          el.addEventListener("pointerdown", consume, { passive: false });
-          el.addEventListener("touchstart", consume, { passive: false });
-        };
-
-        const setPanelOpen = (open) => {
-          panel.classList.toggle("hidden", !open);
-          if (scene.leftStick) scene.leftStick.reset();
-          if (scene.rightStick) scene.rightStick.reset();
-        };
-
-        const updateDebugButton = () => {
-          if (!debugButton) return;
-          debugButton.textContent = scene.debugVisible ? "Debug: вкл" : "Debug: выкл";
-        };
-
-        // Гасим касания по самой панели, но не ломаем кнопки внутри.
-        panel.addEventListener("pointerdown", consume, { passive: false });
-        panel.addEventListener("touchstart", consume, { passive: false });
-        panel.addEventListener("pointerup", (event) => event.stopPropagation(), { passive: false });
-        panel.addEventListener("touchend", (event) => event.stopPropagation(), { passive: false });
-        panel.addEventListener("click", (event) => event.stopPropagation(), { passive: false });
-
-        activate(uiButton, () => {
-          setPanelOpen(panel.classList.contains("hidden"));
-        });
-
-        activate(document.getElementById("dom-debug"), () => scene.toggleDebugVisible());
-        activate(document.getElementById("dom-nudge"), () => {
-          scene.nudgePlayerToNeighborTile();
-          setPanelOpen(false);
-        });
-        activate(document.getElementById("dom-close"), () => setPanelOpen(false));
-        activate(document.getElementById("dom-up"), () => scene.changeStickSetting("stickYFactor", 0.025, 0.16, 0.46));
-        activate(document.getElementById("dom-down"), () => scene.changeStickSetting("stickYFactor", -0.025, 0.16, 0.46));
-        activate(document.getElementById("dom-reset-ui"), () => scene.resetUiSettings());
-        activate(document.getElementById("dom-center"), () => scene.changeStickSetting("stickXFactor", 0.025, 0.13, 0.38));
-        activate(document.getElementById("dom-edge"), () => scene.changeStickSetting("stickXFactor", -0.025, 0.13, 0.38));
-        activate(document.getElementById("dom-size-plus"), () => scene.changeStickSetting("stickRadius", 4, 40, 90));
-        activate(document.getElementById("dom-size-minus"), () => scene.changeStickSetting("stickRadius", -4, 40, 90));
-        activate(document.getElementById("dom-bright"), () => scene.changeStickSetting("stickOpacity", 0.1, 0.25, 1));
-        activate(document.getElementById("dom-fade"), () => scene.changeStickSetting("stickOpacity", -0.1, 0.25, 1));
-
-        updateDebugButton();
       }
 
       class IsoPrototypeScene extends Phaser.Scene {
         constructor() {
           super("IsoPrototypeScene");
-
-          this.chunkData = new Map();
-          this.renderedChunks = new Map();
-
+          this.uiSettings = loadUiSettings();
+          this.chunkCache = new Map();
+          this.loadedChunkObjects = new Map();
           this.centerChunkX = 0;
           this.centerChunkY = 0;
-
           this.playerGlobalX = 15.5;
-          this.playerGlobalY = 18.5;
+          this.playerGlobalY = 17.5;
+          this.playerZ = 0;
           this.playerSpeed = 4.2;
           this.playerRadius = 0.22;
-
-          this.player = null;
-          this.playerArrow = null;
           this.leftStick = null;
           this.rightStick = null;
-          this.facingAngle = 0;
-
-          this.uiSettings = loadUiSettings();
-          this.debugVisible = Boolean(this.uiSettings.debugVisible);
-          this.playMode = Boolean(this.uiSettings.playMode);
-
+          this.player = null;
+          this.playerArrow = null;
           this.infoText = null;
-          this.fpsText = null;
-          this.resetButton = null;
-          this.uiButton = null;
-          this.debugButton = null;
-          this.playButton = null;
-          this.uiPanel = null;
-          this.uiPanelOpen = false;
-
-          this.fpsValue = 0;
-          this.fpsUpdateTimer = 0;
+          this.facingAngle = 0;
+          this.nearAction = null;
+          this.actionButton = null;
+          this.settingsPanel = null;
         }
 
         create() {
-          this.input.addPointer(3);
-
-          this.centerChunkX = this.getPlayerChunkX();
-          this.centerChunkY = this.getPlayerChunkY();
-          this.ensureChunksAroundPlayer();
-
+          setupTelegram();
+          this.input.addPointer(4);
           this.createPlayer();
           this.createSticks();
           this.setupCamera();
-          this.createUi();
-          this.updateInfoText();
+          this.createDebugText();
+          this.setupDomUi();
+          this.refreshLoadedChunks(true);
           this.syncPlayerWorldPosition();
+          this.updateDebugText();
         }
 
         update(time, deltaMs) {
           const dt = deltaMs / 1000;
-
           this.updatePlayerFacing();
           this.updatePlayerMovement(dt);
-          this.updateChunkStreamingIfNeeded();
+          this.updateCenterChunkIfNeeded();
           this.syncPlayerWorldPosition();
-          this.updateFps(deltaMs);
-          this.updateInfoText();
+          this.updateNearbyAction();
+          this.updateDebugText();
         }
 
-        getTopSafeY() {
-          // В Telegram сверху есть панель закрытия/меню. Держим панели ниже.
-          return IS_TELEGRAM ? 78 : 12;
+        setupDomUi() {
+          this.actionButton = document.getElementById("action-btn");
+          this.settingsPanel = document.getElementById("settings-panel");
+          const settingsBtn = document.getElementById("settings-btn");
+
+          bindPress(settingsBtn, () => this.toggleSettingsPanel());
+          bindPress(document.getElementById("close-settings"), () => this.hideSettingsPanel());
+          bindPress(this.actionButton, () => this.performNearbyAction());
+
+          bindPress(document.getElementById("stick-up"), () => this.adjustUi({ stickBottomOffset: this.uiSettings.stickBottomOffset + 0.015 }));
+          bindPress(document.getElementById("stick-down"), () => this.adjustUi({ stickBottomOffset: this.uiSettings.stickBottomOffset - 0.015 }));
+          bindPress(document.getElementById("stick-in"), () => this.adjustUi({ stickCenterOffset: this.uiSettings.stickCenterOffset + 0.015 }));
+          bindPress(document.getElementById("stick-out"), () => this.adjustUi({ stickCenterOffset: this.uiSettings.stickCenterOffset - 0.015 }));
+          bindPress(document.getElementById("stick-bigger"), () => this.adjustUi({ stickRadius: this.uiSettings.stickRadius + 4 }));
+          bindPress(document.getElementById("stick-smaller"), () => this.adjustUi({ stickRadius: this.uiSettings.stickRadius - 4 }));
+          bindPress(document.getElementById("stick-more"), () => this.adjustUi({ stickAlpha: this.uiSettings.stickAlpha + 0.05 }));
+          bindPress(document.getElementById("stick-less"), () => this.adjustUi({ stickAlpha: this.uiSettings.stickAlpha - 0.05 }));
+          bindPress(document.getElementById("debug-toggle"), () => {
+            this.uiSettings.debug = !this.uiSettings.debug;
+            saveUiSettings(this.uiSettings);
+            this.updateDebugVisibility();
+          });
+          bindPress(document.getElementById("step-tile"), () => this.stepOneTileForward());
         }
 
-        getSettingsButtonX() {
-          // Кнопка живёт боковым язычком слева, не сверху и не по центру игрока.
-          return 14;
+        toggleSettingsPanel() {
+          if (!this.settingsPanel) return;
+          this.settingsPanel.style.display = this.settingsPanel.style.display === "block" ? "none" : "block";
         }
 
-        getSettingsButtonY() {
-          const h = this.scale.height;
-          const top = this.getTopSafeY();
-
-          // Середина левого края: не конфликтует с Telegram-кнопками сверху и стиками снизу.
-          return clamp(h * 0.48, top + 92, h - 178);
+        hideSettingsPanel() {
+          if (this.settingsPanel) this.settingsPanel.style.display = "none";
         }
 
-        getPanelMetrics() {
-          const w = this.scale.width;
-          const h = this.scale.height;
-          const top = this.getTopSafeY();
-
-          const panelW = Math.min(560, Math.max(320, w - 48));
-          const panelH = Math.min(340, Math.max(300, h - top - 28));
-          const x = Math.max(16, (w - panelW) / 2);
-          const y = clamp((h - panelH) / 2, top + 16, Math.max(top + 16, h - panelH - 16));
-
-          return { x, y, w: panelW, h: panelH };
+        adjustUi(patch) {
+          this.uiSettings = { ...this.uiSettings, ...patch };
+          this.uiSettings.stickCenterOffset = Phaser.Math.Clamp(this.uiSettings.stickCenterOffset, 0.14, 0.34);
+          this.uiSettings.stickBottomOffset = Phaser.Math.Clamp(this.uiSettings.stickBottomOffset, 0.14, 0.38);
+          this.uiSettings.stickRadius = Phaser.Math.Clamp(this.uiSettings.stickRadius, 42, 78);
+          this.uiSettings.stickAlpha = Phaser.Math.Clamp(this.uiSettings.stickAlpha, 0.12, 0.7);
+          saveUiSettings(this.uiSettings);
+          if (this.leftStick) this.leftStick.refreshLayout();
+          if (this.rightStick) this.rightStick.refreshLayout();
         }
 
-        createUi() {
+        createDebugText() {
           this.infoText = this.add
-            .text(12, this.getTopSafeY() + 50, "", {
+            .text(12, 12, "", {
               fontFamily: "Arial",
               fontSize: "14px",
               color: "#ffffff",
@@ -769,288 +599,46 @@
             })
             .setScrollFactor(0)
             .setDepth(100001);
-
-          this.fpsText = this.add
-            .text(12, this.getTopSafeY() + 150, "", {
-              fontFamily: "Arial",
-              fontSize: "14px",
-              color: "#d6ffd6",
-              backgroundColor: "#00000088",
-              padding: { x: 8, y: 5 },
-            })
-            .setScrollFactor(0)
-            .setDepth(100001);
-
-          // Phaser-кнопки в Telegram конфликтовали с ориентацией и тачем.
-          // Настройки теперь живут в обычном DOM-слое поверх canvas.
-          setupDomUi(this);
-          this.applyUiVisibility();
-
-          this.scale.on("resize", () => {
-            this.layoutUi();
-            if (this.leftStick) this.leftStick.refreshFromSettings();
-            if (this.rightStick) this.rightStick.refreshFromSettings();
-          });
+          this.updateDebugVisibility();
         }
 
-        makeUiButton(label, x, y, callback, color) {
-          const isMainUiButton = label.startsWith("⚙");
-          const button = this.add
-            .text(x, y, label, {
-              fontFamily: "Arial",
-              fontSize: isMainUiButton ? "18px" : "14px",
-              color: "#ffffff",
-              backgroundColor: color,
-              padding: { x: isMainUiButton ? 10 : 10, y: isMainUiButton ? 9 : 8 },
-            })
-            .setScrollFactor(0)
-            .setDepth(100002)
-            .setInteractive({ useHandCursor: true });
-
-          button.on("pointerdown", (pointer) => {
-            pointer.event.stopPropagation();
-            callback();
-          });
-
-          return button;
+        updateDebugVisibility() {
+          if (this.infoText) this.infoText.setVisible(Boolean(this.uiSettings.debug));
         }
 
-        createUiPanel() {
-          const metrics = this.getPanelMetrics();
-          this.uiPanel = this.add.container(metrics.x, metrics.y);
-          this.uiPanel.setScrollFactor(0);
-          this.uiPanel.setDepth(100003);
-
-          this.uiPanelBg = this.add.rectangle(0, 0, metrics.w, metrics.h, 0x000000, 0.84)
-            .setOrigin(0, 0)
-            .setStrokeStyle(2, 0xffffff, 0.28)
-            .setInteractive({ useHandCursor: false });
-          this.uiPanelBg.on("pointerdown", (pointer) => pointer.event.stopPropagation());
-          this.uiPanel.add(this.uiPanelBg);
-
-          this.uiPanelTitle = this.add.text(16, 12, "Настройки", {
-            fontFamily: "Arial",
-            fontSize: "18px",
-            color: "#ffffff",
-          });
-          this.uiPanel.add(this.uiPanelTitle);
-
-          this.uiPanelHint = this.add.text(16, 38, "⚙ вынесена на левый край. Меню теперь по центру и не режется.", {
-            fontFamily: "Arial",
-            fontSize: "12px",
-            color: "#cccccc",
-          });
-          this.uiPanel.add(this.uiPanelHint);
-
-          const addPanelButton = (label, x, y, callback, w) => {
-            const b = this.add
-              .text(x, y, label, {
-                fontFamily: "Arial",
-                fontSize: "15px",
-                color: "#ffffff",
-                backgroundColor: "#333333dd",
-                padding: { x: 10, y: 8 },
-                fixedWidth: w || 0,
-              })
-              .setInteractive({ useHandCursor: true });
-
-            b.on("pointerdown", (pointer) => {
-              pointer.event.stopPropagation();
-              callback();
-            });
-
-            this.uiPanel.add(b);
-            return b;
-          };
-
-          const col1 = 16;
-          const col2 = 168;
-          const col3 = 320;
-          const bw = 134;
-
-          this.panelDebugButton = addPanelButton("Debug: выкл", col1, 72, () => this.toggleDebugVisible(), bw);
-          addPanelButton("сдвиг 1 тайл", col2, 72, () => {
-            this.nudgePlayerToNeighborTile();
-            this.toggleUiPanel(false);
-          }, bw);
-          addPanelButton("закрыть", col3, 72, () => this.toggleUiPanel(false), bw);
-
-          addPanelButton("стики ↑", col1, 122, () => this.changeStickSetting("stickYFactor", 0.025, 0.16, 0.46), bw);
-          addPanelButton("стики ↓", col2, 122, () => this.changeStickSetting("stickYFactor", -0.025, 0.16, 0.46), bw);
-          addPanelButton("сброс UI", col3, 122, () => this.resetUiSettings(), bw);
-
-          addPanelButton("к центру +", col1, 172, () => this.changeStickSetting("stickXFactor", 0.025, 0.13, 0.38), bw);
-          addPanelButton("к краям -", col2, 172, () => this.changeStickSetting("stickXFactor", -0.025, 0.13, 0.38), bw);
-
-          addPanelButton("размер +", col1, 222, () => this.changeStickSetting("stickRadius", 4, 40, 90), bw);
-          addPanelButton("размер -", col2, 222, () => this.changeStickSetting("stickRadius", -4, 40, 90), bw);
-
-          addPanelButton("ярче", col1, 272, () => this.changeStickSetting("stickOpacity", 0.1, 0.25, 1), bw);
-          addPanelButton("бледнее", col2, 272, () => this.changeStickSetting("stickOpacity", -0.1, 0.25, 1), bw);
-        }
-
-        layoutUi() {
-          const top = this.getTopSafeY();
-
-          if (this.uiButton) this.uiButton.setPosition(this.getSettingsButtonX(), this.getSettingsButtonY());
-
-          if (this.uiPanel) {
-            const metrics = this.getPanelMetrics();
-            this.uiPanel.setPosition(metrics.x, metrics.y);
-            if (this.uiPanelBg) this.uiPanelBg.setSize(metrics.w, metrics.h);
-          }
-
-          if (this.infoText) this.infoText.setPosition(12, top + 50);
-          if (this.fpsText) this.fpsText.setPosition(12, this.infoText && this.infoText.visible ? this.infoText.y + this.infoText.height + 8 : top + 50);
-        }
-
-        toggleUiPanel(forceValue) {
-          this.uiPanelOpen = typeof forceValue === "boolean" ? forceValue : !this.uiPanelOpen;
-          this.applyUiVisibility();
-        }
-
-        toggleDebugVisible() {
-          this.debugVisible = !this.debugVisible;
-          this.uiSettings.debugVisible = this.debugVisible;
-          saveUiSettings(this.uiSettings);
-          this.applyUiVisibility();
-        }
-
-        changeStickSetting(key, delta, min, max) {
-          this.uiSettings[key] = clamp(this.uiSettings[key] + delta, min, max);
-          saveUiSettings(this.uiSettings);
-
-          if (this.leftStick) this.leftStick.refreshFromSettings();
-          if (this.rightStick) this.rightStick.refreshFromSettings();
-        }
-
-        resetUiSettings() {
-          const keepDebug = this.debugVisible;
-          this.uiSettings = { ...DEFAULT_UI_SETTINGS, debugVisible: keepDebug, playMode: true };
-          saveUiSettings(this.uiSettings);
-
-          if (this.leftStick) this.leftStick.refreshFromSettings();
-          if (this.rightStick) this.rightStick.refreshFromSettings();
-          this.applyUiVisibility();
-        }
-
-        applyUiVisibility() {
-          const showDebug = this.debugVisible;
-
-          if (this.infoText) this.infoText.setVisible(showDebug);
-          if (this.fpsText) this.fpsText.setVisible(showDebug);
-          if (this.uiButton) this.uiButton.setVisible(true);
-          if (this.uiPanel) this.uiPanel.setVisible(this.uiPanelOpen);
-          if (this.panelDebugButton) this.panelDebugButton.setText(this.debugVisible ? "Debug: вкл" : "Debug: выкл");
-
-          this.applyChunkDebugVisibility();
-          this.layoutUi();
-        }
-
-        applyChunkDebugVisibility() {
-          const visible = this.debugVisible;
-          for (const rendered of this.renderedChunks.values()) {
-            if (!rendered.debugObjects) continue;
-            for (const obj of rendered.debugObjects) obj.setVisible(visible);
-          }
-        }
-
-        updateFps(deltaMs) {
-          if (deltaMs <= 0) return;
-          const instant = 1000 / deltaMs;
-          this.fpsValue = this.fpsValue === 0 ? instant : this.fpsValue * 0.9 + instant * 0.1;
-        }
-
-        updateInfoText() {
-          if (!this.infoText) return;
-
-          const cx = this.getPlayerChunkX();
-          const cy = this.getPlayerChunkY();
+        updateDebugText() {
+          if (!this.infoText || !this.uiSettings.debug) return;
+          const playerChunk = this.getChunkCoordsFromGlobal(this.playerGlobalX, this.playerGlobalY);
           const local = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
-          const objectCount = Array.from(this.renderedChunks.values()).reduce(
-            (sum, rendered) => sum + rendered.objects.length,
-            0
-          );
-
+          const chunk = this.getChunk(playerChunk.cx, playerChunk.cy);
+          const fps = Math.round(this.game.loop.actualFps || 0);
           this.infoText.setText(
-            `v0.5 static world data\n` +
-              `Чанков: ${this.renderedChunks.size} | центр: ${this.centerChunkX}, ${this.centerChunkY}\n` +
-              `Игрок: чанк ${cx},${cy} | локально ${local.x.toFixed(1)} / ${local.y.toFixed(1)}\n` +
-              `Глобально: ${this.playerGlobalX.toFixed(1)} / ${this.playerGlobalY.toFixed(1)}`
+            `v0.7 floors / basement\n` +
+              `FPS: ${fps}\n` +
+              `Z: ${this.playerZ}  (${this.getZLabel(this.playerZ)})\n` +
+              `Chunk: ${playerChunk.cx}, ${playerChunk.cy}\n` +
+              `Local: ${local.x.toFixed(1)}, ${local.y.toFixed(1)}\n` +
+              `Global: ${this.playerGlobalX.toFixed(1)}, ${this.playerGlobalY.toFixed(1)}\n` +
+              `Место: ${chunk.name}`
           );
-
-          if (this.fpsText) {
-            this.fpsText.setText(
-              `FPS: ${Math.round(this.fpsValue)} | objects: ${objectCount}`
-            );
-          }
-
-          this.layoutUi();
         }
 
-        nudgePlayerToNeighborTile() {
-          const screenX = Math.cos(this.facingAngle);
-          const screenY = Math.sin(this.facingAngle);
-          const gridDir = this.screenDirectionToGridDirection(screenX, screenY);
-
-          let primary = [1, 0];
-          if (Math.abs(gridDir.x) > Math.abs(gridDir.y)) {
-            primary = [Math.sign(gridDir.x) || 1, 0];
-          } else {
-            primary = [0, Math.sign(gridDir.y) || 1];
-          }
-
-          const dirs = [
-            primary,
-            [1, 0],
-            [-1, 0],
-            [0, 1],
-            [0, -1],
-          ];
-
-          const baseX = Math.floor(this.playerGlobalX);
-          const baseY = Math.floor(this.playerGlobalY);
-
-          for (const [dx, dy] of dirs) {
-            const targetX = baseX + dx + 0.5;
-            const targetY = baseY + dy + 0.5;
-
-            if (this.canMoveX(this.playerGlobalX, targetX, this.playerGlobalY) &&
-                this.canMoveY(this.playerGlobalY, targetY, targetX)) {
-              this.playerGlobalX = targetX;
-              this.playerGlobalY = targetY;
-              this.updateChunkStreamingIfNeeded();
-              this.syncPlayerWorldPosition();
-              return;
-            }
-          }
+        getZLabel(z) {
+          if (z === -1) return "подвал";
+          if (z === 0) return "улица / 1 этаж";
+          if (z === 1) return "2 этаж";
+          return `уровень ${z}`;
         }
 
         createPlayer() {
           this.player = this.add.container(0, 0);
-
           const shadow = this.add.ellipse(0, 10, 30, 14, 0x000000, 0.35);
-
           const body = this.add.circle(0, -8, 13, 0x2c6bd6, 1);
           body.setStrokeStyle(2, 0x102d63, 1);
-
           const head = this.add.circle(0, -24, 8, 0xe2b887, 1);
           head.setStrokeStyle(2, 0x5b3a28, 1);
-
-          this.playerArrow = this.add.triangle(
-            0,
-            -8,
-            0,
-            -7,
-            28,
-            0,
-            0,
-            7,
-            0xffdd66,
-            1
-          );
+          this.playerArrow = this.add.triangle(0, -8, 0, -7, 28, 0, 0, 7, 0xffdd66, 1);
           this.playerArrow.setStrokeStyle(2, 0x7a5a00, 1);
-
           this.player.add([shadow, body, head, this.playerArrow]);
         }
 
@@ -1063,578 +651,264 @@
           this.cameras.main.setBackgroundColor("#151515");
           this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
           this.cameras.main.setZoom(1.2);
+          this.cameras.main.setBounds(-100000, -100000, 200000, 200000);
         }
 
-        updatePlayerFacing() {
-          if (!this.rightStick) return;
-
-          if (this.rightStick.strength > 0.15) {
-            this.facingAngle = Math.atan2(this.rightStick.valueY, this.rightStick.valueX);
-          }
-
-          if (this.playerArrow) this.playerArrow.setRotation(this.facingAngle);
+        getChunkCoordsFromGlobal(globalX, globalY) {
+          return {
+            cx: floorDiv(Math.floor(globalX), CHUNK_SIZE),
+            cy: floorDiv(Math.floor(globalY), CHUNK_SIZE),
+          };
         }
 
-        updatePlayerMovement(dt) {
-          if (!this.leftStick) return;
+        globalToLocal(globalX, globalY) {
+          const tileX = Math.floor(globalX);
+          const tileY = Math.floor(globalY);
+          const cx = floorDiv(tileX, CHUNK_SIZE);
+          const cy = floorDiv(tileY, CHUNK_SIZE);
+          return {
+            cx,
+            cy,
+            lx: positiveMod(tileX, CHUNK_SIZE),
+            ly: positiveMod(tileY, CHUNK_SIZE),
+            x: globalX - cx * CHUNK_SIZE,
+            y: globalY - cy * CHUNK_SIZE,
+          };
+        }
 
-          const sx = this.leftStick.valueX;
-          const sy = this.leftStick.valueY;
-
-          if (this.leftStick.strength <= 0.08) return;
-
-          const gridDir = this.screenDirectionToGridDirection(sx, sy);
-          const speed = this.playerSpeed * this.leftStick.strength * dt;
-
-          const nextX = this.playerGlobalX + gridDir.x * speed;
-          const nextY = this.playerGlobalY + gridDir.y * speed;
-
-          if (this.canMoveX(this.playerGlobalX, nextX, this.playerGlobalY)) {
-            this.playerGlobalX = nextX;
-          }
-
-          if (this.canMoveY(this.playerGlobalY, nextY, this.playerGlobalX)) {
-            this.playerGlobalY = nextY;
+        updateCenterChunkIfNeeded() {
+          const coords = this.getChunkCoordsFromGlobal(this.playerGlobalX, this.playerGlobalY);
+          if (coords.cx !== this.centerChunkX || coords.cy !== this.centerChunkY) {
+            this.centerChunkX = coords.cx;
+            this.centerChunkY = coords.cy;
+            this.refreshLoadedChunks(false);
           }
         }
 
-        screenDirectionToGridDirection(screenX, screenY) {
-          const a = screenX / (TILE_W / 2);
-          const b = screenY / (TILE_H / 2);
-
-          let gridX = (a + b) / 2;
-          let gridY = (b - a) / 2;
-
-          const len = Math.hypot(gridX, gridY);
-          if (len <= 0.001) return { x: 0, y: 0 };
-
-          return { x: gridX / len, y: gridY / len };
-        }
-
-        canMoveX(currentX, nextX, y) {
-          const r = this.playerRadius;
-          const sampleYs = [y - r, y, y + r];
-
-          if (nextX > currentX) {
-            const oldEdge = currentX + r;
-            const newEdge = nextX + r;
-
-            for (let xWall = Math.floor(oldEdge) + 1; xWall <= Math.floor(newEdge); xWall++) {
-              for (const sampleY of sampleYs) {
-                if (this.hasVerticalWallGlobal(xWall, Math.floor(sampleY))) return false;
-              }
-            }
-          }
-
-          if (nextX < currentX) {
-            const oldEdge = currentX - r;
-            const newEdge = nextX - r;
-
-            for (let xWall = Math.floor(oldEdge); xWall >= Math.floor(newEdge) + 1; xWall--) {
-              for (const sampleY of sampleYs) {
-                if (this.hasVerticalWallGlobal(xWall, Math.floor(sampleY))) return false;
-              }
-            }
-          }
-
-          return true;
-        }
-
-        canMoveY(currentY, nextY, x) {
-          const r = this.playerRadius;
-          const sampleXs = [x - r, x, x + r];
-
-          if (nextY > currentY) {
-            const oldEdge = currentY + r;
-            const newEdge = nextY + r;
-
-            for (let yWall = Math.floor(oldEdge) + 1; yWall <= Math.floor(newEdge); yWall++) {
-              for (const sampleX of sampleXs) {
-                if (this.hasHorizontalWallGlobal(yWall, Math.floor(sampleX))) return false;
-              }
-            }
-          }
-
-          if (nextY < currentY) {
-            const oldEdge = currentY - r;
-            const newEdge = nextY - r;
-
-            for (let yWall = Math.floor(oldEdge); yWall >= Math.floor(newEdge) + 1; yWall--) {
-              for (const sampleX of sampleXs) {
-                if (this.hasHorizontalWallGlobal(yWall, Math.floor(sampleX))) return false;
-              }
-            }
-          }
-
-          return true;
-        }
-
-        hasVerticalWallGlobal(globalXWall, globalTileY) {
-          const cy = floorDiv(globalTileY, CHUNK_SIZE);
-          const localY = positiveMod(globalTileY, CHUNK_SIZE);
-
-          const cxRight = floorDiv(globalXWall, CHUNK_SIZE);
-          const localXRight = positiveMod(globalXWall, CHUNK_SIZE);
-          const rightChunk = this.getChunkData(cxRight, cy);
-
-          if (rightChunk.vWalls[localY][localXRight]) return true;
-
-          if (localXRight === 0) {
-            const leftChunk = this.getChunkData(cxRight - 1, cy);
-            if (leftChunk.vWalls[localY][CHUNK_SIZE]) return true;
-          }
-
-          return false;
-        }
-
-        hasHorizontalWallGlobal(globalYWall, globalTileX) {
-          const cx = floorDiv(globalTileX, CHUNK_SIZE);
-          const localX = positiveMod(globalTileX, CHUNK_SIZE);
-
-          const cyBottom = floorDiv(globalYWall, CHUNK_SIZE);
-          const localYBottom = positiveMod(globalYWall, CHUNK_SIZE);
-          const bottomChunk = this.getChunkData(cx, cyBottom);
-
-          if (bottomChunk.hWalls[localYBottom][localX]) return true;
-
-          if (localYBottom === 0) {
-            const topChunk = this.getChunkData(cx, cyBottom - 1);
-            if (topChunk.hWalls[CHUNK_SIZE][localX]) return true;
-          }
-
-          return false;
-        }
-
-        updateChunkStreamingIfNeeded() {
-          const playerCx = this.getPlayerChunkX();
-          const playerCy = this.getPlayerChunkY();
-
-          if (playerCx === this.centerChunkX && playerCy === this.centerChunkY) return;
-
-          this.centerChunkX = playerCx;
-          this.centerChunkY = playerCy;
-          this.ensureChunksAroundPlayer();
-        }
-
-        ensureChunksAroundPlayer() {
-          const needed = new Set();
-
-          for (let dy = -LOAD_RADIUS; dy <= LOAD_RADIUS; dy++) {
-            for (let dx = -LOAD_RADIUS; dx <= LOAD_RADIUS; dx++) {
-              const cx = this.centerChunkX + dx;
-              const cy = this.centerChunkY + dy;
+        refreshLoadedChunks(force) {
+          const required = new Set();
+          for (let cy = this.centerChunkY - 1; cy <= this.centerChunkY + 1; cy++) {
+            for (let cx = this.centerChunkX - 1; cx <= this.centerChunkX + 1; cx++) {
               const key = chunkKey(cx, cy);
-              needed.add(key);
-
-              this.getChunkData(cx, cy);
-
-              if (!this.renderedChunks.has(key)) {
-                this.renderChunk(cx, cy);
+              required.add(key);
+              if (force || !this.loadedChunkObjects.has(key)) {
+                this.drawChunk(cx, cy);
               }
             }
           }
 
-          for (const [key, rendered] of this.renderedChunks.entries()) {
-            if (needed.has(key)) continue;
-
-            for (const obj of rendered.objects) obj.destroy();
-            this.renderedChunks.delete(key);
+          for (const [key, objects] of this.loadedChunkObjects.entries()) {
+            if (!required.has(key)) {
+              for (const obj of objects) obj.destroy();
+              this.loadedChunkObjects.delete(key);
+            }
           }
         }
 
-        getChunkData(cx, cy) {
+        getChunk(cx, cy) {
           const key = chunkKey(cx, cy);
-
-          if (!this.chunkData.has(key)) {
-            this.chunkData.set(key, this.generateChunk(cx, cy));
+          if (!this.chunkCache.has(key)) {
+            this.chunkCache.set(key, this.buildChunk(cx, cy));
           }
-
-          return this.chunkData.get(key);
+          return this.chunkCache.get(key);
         }
 
-        generateChunk(cx, cy) {
-          const ground = [];
-          const hWalls = [];
-          const vWalls = [];
-
-          for (let y = 0; y < CHUNK_SIZE; y++) {
-            const row = [];
-            for (let x = 0; x < CHUNK_SIZE; x++) row.push(TileKind.Grass);
-            ground.push(row);
-          }
-
-          for (let y = 0; y < CHUNK_SIZE + 1; y++) {
-            const row = [];
-            for (let x = 0; x < CHUNK_SIZE; x++) row.push(false);
-            hWalls.push(row);
-          }
-
-          for (let y = 0; y < CHUNK_SIZE; y++) {
-            const row = [];
-            for (let x = 0; x < CHUNK_SIZE + 1; x++) row.push(false);
-            vWalls.push(row);
-          }
-
+        buildChunk(cx, cy) {
           const key = chunkKey(cx, cy);
-          const data = WORLD_DATA[key];
+          const data = WORLD_DATA[key] || null;
           const chunk = {
             cx,
             cy,
-            ground,
-            hWalls,
-            vWalls,
-            label: data ? data.label : "Неразмеченная окраина",
-            staticWorld: Boolean(data),
+            name: data ? data.name : "Пустая окраина",
+            levels: new Map(),
           };
+          const groundLevel = this.createBlankLevel(TileKind.Grass);
+          chunk.levels.set(0, groundLevel);
 
           if (data) {
-            this.applyWorldChunkData(chunk, data);
+            for (const road of data.roads || []) this.paintRect(groundLevel, road.x, road.y, road.w, road.h, TileKind.Road);
+            for (const dirt of data.dirt || []) this.paintRect(groundLevel, dirt.x, dirt.y, dirt.w, dirt.h, TileKind.Dirt);
+            for (const building of data.buildings || []) {
+              if (building.tower) this.addTestTower(chunk, building);
+              else this.addBuildingToLevel(groundLevel, building, building.shop ? TileKind.Concrete : TileKind.Floor);
+            }
           } else {
-            this.paintFallbackChunk(chunk);
+            this.paintRect(groundLevel, 14, 0, 4, 32, TileKind.Road);
           }
 
           return chunk;
         }
 
-        applyWorldChunkData(chunk, data) {
-          for (const rect of data.roads || []) {
-            this.paintRect(chunk, rect.x, rect.y, rect.w, rect.h, TileKind.Road);
-          }
-
-          for (const rect of data.dirt || []) {
-            this.paintRect(chunk, rect.x, rect.y, rect.w, rect.h, TileKind.Dirt);
-          }
-
-          for (const rect of data.floor || []) {
-            this.paintRect(chunk, rect.x, rect.y, rect.w, rect.h, TileKind.Floor);
-          }
-
-          for (const building of data.buildings || []) {
-            this.addBuildingDirect(
-              chunk,
-              building.x,
-              building.y,
-              building.w,
-              building.h,
-              building.doorSide,
-              building.doorOffset
-            );
-          }
-
-          for (const wall of data.hWalls || []) {
-            for (let x = wall.x; x < wall.x + wall.w; x++) {
-              this.setHWall(chunk, x, wall.y, true);
-            }
-          }
-
-          for (const wall of data.vWalls || []) {
-            for (let y = wall.y; y < wall.y + wall.h; y++) {
-              this.setVWall(chunk, wall.x, y, true);
-            }
-          }
-        }
-
-        paintRect(chunk, startX, startY, width, height, tileKind) {
-          for (let y = startY; y < startY + height; y++) {
-            for (let x = startX; x < startX + width; x++) {
-              if (x < 0 || x >= CHUNK_SIZE || y < 0 || y >= CHUNK_SIZE) continue;
-              chunk.ground[y][x] = tileKind;
-            }
-          }
-        }
-
-        paintFallbackChunk(chunk) {
-          // За пределами готовой тестовой 3×3 карты пока только пустая окраина.
-          // Домики тут не генерируем: это важно для будущей ручной карты.
-          const rng = mulberry32(hashInt(chunk.cx + 113, chunk.cy - 997));
-          const patchCount = 2 + Math.floor(rng() * 3);
-
-          for (let i = 0; i < patchCount; i++) {
-            const px = 2 + Math.floor(rng() * 24);
-            const py = 2 + Math.floor(rng() * 24);
-            const w = 4 + Math.floor(rng() * 7);
-            const h = 3 + Math.floor(rng() * 5);
-            this.paintRect(chunk, px, py, w, h, TileKind.Dirt);
-          }
-        }
-
-        addBuildingDirect(chunk, startX, startY, width, height, doorSide, doorOffset) {
-          if (startX < 0 || startY < 0) return;
-          if (startX + width > CHUNK_SIZE) return;
-          if (startY + height > CHUNK_SIZE) return;
-
-          for (let y = startY; y < startY + height; y++) {
-            for (let x = startX; x < startX + width; x++) {
-              chunk.ground[y][x] = TileKind.Floor;
-            }
-          }
-
-          for (let x = startX; x < startX + width; x++) {
-            const topIsDoor = doorSide === "north" && x === startX + doorOffset;
-            const bottomIsDoor = doorSide === "south" && x === startX + doorOffset;
-
-            if (!topIsDoor) this.setHWall(chunk, x, startY, true);
-            if (!bottomIsDoor) this.setHWall(chunk, x, startY + height, true);
-          }
-
-          for (let y = startY; y < startY + height; y++) {
-            const leftIsDoor = doorSide === "west" && y === startY + doorOffset;
-            const rightIsDoor = doorSide === "east" && y === startY + doorOffset;
-
-            if (!leftIsDoor) this.setVWall(chunk, startX, y, true);
-            if (!rightIsDoor) this.setVWall(chunk, startX + width, y, true);
-          }
-        }
-
-        paintProceduralRoads(chunk) {
+        createBlankLevel(defaultKind) {
+          const ground = [];
+          const hWalls = [];
+          const vWalls = [];
+          const stairs = [];
           for (let y = 0; y < CHUNK_SIZE; y++) {
-            for (let x = 0; x < CHUNK_SIZE; x++) {
-              const gx = chunk.cx * CHUNK_SIZE + x;
-              const gy = chunk.cy * CHUNK_SIZE + y;
+            const row = [];
+            for (let x = 0; x < CHUNK_SIZE; x++) row.push(defaultKind);
+            ground.push(row);
+          }
+          for (let y = 0; y < CHUNK_SIZE + 1; y++) {
+            const row = [];
+            for (let x = 0; x < CHUNK_SIZE; x++) row.push(false);
+            hWalls.push(row);
+          }
+          for (let y = 0; y < CHUNK_SIZE; y++) {
+            const row = [];
+            for (let x = 0; x < CHUNK_SIZE + 1; x++) row.push(false);
+            vWalls.push(row);
+          }
+          return { ground, hWalls, vWalls, stairs };
+        }
 
-              const mx = positiveMod(gx, 64);
-              const my = positiveMod(gy, 64);
+        ensureLevel(chunk, z, defaultKind = TileKind.Void) {
+          if (!chunk.levels.has(z)) {
+            chunk.levels.set(z, this.createBlankLevel(defaultKind));
+          }
+          return chunk.levels.get(z);
+        }
 
-              const mainVerticalRoad = mx >= 14 && mx <= 17;
-              const mainHorizontalRoad = my >= 14 && my <= 17;
-
-              const smallLaneA = positiveMod(gy + 24, 96) >= 48 && positiveMod(gy + 24, 96) <= 49 && mx > 20 && mx < 56;
-              const smallLaneB = positiveMod(gx + 11, 96) >= 48 && positiveMod(gx + 11, 96) <= 49 && my > 20 && my < 56;
-
-              if (mainVerticalRoad || mainHorizontalRoad || smallLaneA || smallLaneB) {
-                chunk.ground[y][x] = TileKind.Road;
-              }
+        paintRect(level, x, y, w, h, kind) {
+          for (let yy = y; yy < y + h; yy++) {
+            for (let xx = x; xx < x + w; xx++) {
+              if (this.isInsideLocal(xx, yy)) level.ground[yy][xx] = kind;
             }
           }
         }
 
-        paintProceduralDirtPatches(chunk) {
-          const rng = mulberry32(hashInt(chunk.cx + 913, chunk.cy - 421));
-
-          for (let i = 0; i < 3; i++) {
-            const px = 2 + Math.floor(rng() * 24);
-            const py = 2 + Math.floor(rng() * 24);
-            const w = 3 + Math.floor(rng() * 5);
-            const h = 2 + Math.floor(rng() * 4);
-
-            for (let y = py; y < py + h && y < CHUNK_SIZE; y++) {
-              for (let x = px; x < px + w && x < CHUNK_SIZE; x++) {
-                if (chunk.ground[y][x] === TileKind.Grass) {
-                  chunk.ground[y][x] = TileKind.Dirt;
-                }
-              }
-            }
-          }
+        addBuildingToLevel(level, b, kind = TileKind.Floor) {
+          this.paintRect(level, b.x, b.y, b.w, b.h, kind);
+          this.addPerimeterWalls(level, b.x, b.y, b.w, b.h, b.doorSide, b.doorOffset);
         }
 
-        addProceduralBuildings(chunk) {
-          // Несколько узнаваемых зданий рядом со стартом, чтобы было что проверять.
-          if (chunk.cx === 0 && chunk.cy === 0) {
-            this.addBuildingIfClear(chunk, 4, 5, 8, 6, "south", 3);
-            this.addBuildingIfClear(chunk, 21, 20, 7, 7, "north", 3);
-          }
+        addTestTower(chunk, b) {
+          const z0 = this.ensureLevel(chunk, 0, TileKind.Grass);
+          const z1 = this.ensureLevel(chunk, 1, TileKind.Void);
+          const basement = this.ensureLevel(chunk, -1, TileKind.Void);
 
-          if (chunk.cx === 1 && chunk.cy === 0) {
-            this.addBuildingIfClear(chunk, 18, 5, 10, 8, "south", 4);
-            this.addBuildingIfClear(chunk, 4, 20, 7, 7, "north", 3);
-          }
+          this.addBuildingToLevel(z0, b, TileKind.Floor);
+          this.addBuildingToLevel(z1, { ...b, doorSide: null }, TileKind.Floor);
+          this.addBuildingToLevel(basement, { ...b, doorSide: null }, TileKind.Concrete);
 
-          if (chunk.cx === 0 && chunk.cy === 1) {
-            this.addBuildingIfClear(chunk, 5, 18, 9, 7, "east", 3);
-            this.addBuildingIfClear(chunk, 20, 4, 8, 6, "south", 4);
-          }
+          const upX = b.x + 3.5;
+          const upY = b.y + 4.5;
+          const downX = b.x + 5.5;
+          const downY = b.y + 4.5;
 
-          if (chunk.cx === 1 && chunk.cy === 1) {
-            this.addBuildingIfClear(chunk, 5, 5, 11, 8, "south", 5);
-            this.addBuildingIfClear(chunk, 21, 18, 7, 7, "west", 3);
-          }
-
-          // Лёгкая процедурная застройка дальше от старта.
-          const rng = mulberry32(hashInt(chunk.cx, chunk.cy));
-          const count = 1 + Math.floor(rng() * 3);
-
-          for (let i = 0; i < count; i++) {
-            const w = 6 + Math.floor(rng() * 5);
-            const h = 5 + Math.floor(rng() * 4);
-
-            let placed = false;
-            for (let attempt = 0; attempt < 8 && !placed; attempt++) {
-              const x = 2 + Math.floor(rng() * (CHUNK_SIZE - w - 4));
-              const y = 2 + Math.floor(rng() * (CHUNK_SIZE - h - 4));
-
-              const sideRoll = Math.floor(rng() * 4);
-              const side = ["north", "south", "west", "east"][sideRoll];
-              const doorOffset = side === "north" || side === "south"
-                ? 1 + Math.floor(rng() * (w - 2))
-                : 1 + Math.floor(rng() * (h - 2));
-
-              placed = this.addBuildingIfClear(chunk, x, y, w, h, side, doorOffset);
-            }
-          }
+          z0.stairs.push({ x: upX, y: upY, label: "2 этаж ↑", targetZ: 1, targetX: upX, targetY: upY, dir: "up" });
+          z1.stairs.push({ x: upX, y: upY, label: "1 этаж ↓", targetZ: 0, targetX: upX, targetY: upY, dir: "down" });
+          z0.stairs.push({ x: downX, y: downY, label: "Подвал ↓", targetZ: -1, targetX: downX, targetY: downY, dir: "down" });
+          basement.stairs.push({ x: downX, y: downY, label: "1 этаж ↑", targetZ: 0, targetX: downX, targetY: downY, dir: "up" });
         }
 
-        addBuildingIfClear(chunk, startX, startY, width, height, doorSide, doorOffset) {
-          if (startX < 1 || startY < 1) return false;
-          if (startX + width >= CHUNK_SIZE - 1) return false;
-          if (startY + height >= CHUNK_SIZE - 1) return false;
-
-          for (let y = startY - 1; y < startY + height + 1; y++) {
-            for (let x = startX - 1; x < startX + width + 1; x++) {
-              if (chunk.ground[y][x] === TileKind.Road) return false;
-              if (chunk.ground[y][x] === TileKind.Floor) return false;
-            }
-          }
-
-          for (let y = startY; y < startY + height; y++) {
-            for (let x = startX; x < startX + width; x++) {
-              chunk.ground[y][x] = TileKind.Floor;
-            }
-          }
-
+        addPerimeterWalls(level, startX, startY, width, height, doorSide, doorOffset) {
           for (let x = startX; x < startX + width; x++) {
             const topIsDoor = doorSide === "north" && x === startX + doorOffset;
             const bottomIsDoor = doorSide === "south" && x === startX + doorOffset;
-
-            if (!topIsDoor) this.setHWall(chunk, x, startY, true);
-            if (!bottomIsDoor) this.setHWall(chunk, x, startY + height, true);
+            if (!topIsDoor) this.setHWall(level, x, startY, true);
+            if (!bottomIsDoor) this.setHWall(level, x, startY + height, true);
           }
-
           for (let y = startY; y < startY + height; y++) {
             const leftIsDoor = doorSide === "west" && y === startY + doorOffset;
             const rightIsDoor = doorSide === "east" && y === startY + doorOffset;
-
-            if (!leftIsDoor) this.setVWall(chunk, startX, y, true);
-            if (!rightIsDoor) this.setVWall(chunk, startX + width, y, true);
+            if (!leftIsDoor) this.setVWall(level, startX, y, true);
+            if (!rightIsDoor) this.setVWall(level, startX + width, y, true);
           }
-
-          return true;
         }
 
-        setHWall(chunk, x, y, value) {
+        setHWall(level, x, y, value) {
           if (x < 0 || x >= CHUNK_SIZE || y < 0 || y > CHUNK_SIZE) return;
-          chunk.hWalls[y][x] = value;
+          level.hWalls[y][x] = value;
         }
 
-        setVWall(chunk, x, y, value) {
+        setVWall(level, x, y, value) {
           if (x < 0 || x > CHUNK_SIZE || y < 0 || y >= CHUNK_SIZE) return;
-          chunk.vWalls[y][x] = value;
+          level.vWalls[y][x] = value;
         }
 
-        renderChunk(cx, cy) {
-          const chunk = this.getChunkData(cx, cy);
+        drawChunk(cx, cy) {
+          const key = chunkKey(cx, cy);
+          if (this.loadedChunkObjects.has(key)) {
+            for (const obj of this.loadedChunkObjects.get(key)) obj.destroy();
+          }
           const objects = [];
+          this.loadedChunkObjects.set(key, objects);
+          const chunk = this.getChunk(cx, cy);
+          const level = chunk.levels.get(this.playerZ);
 
-          const debugObjects = [];
+          if (!level) return;
 
-          const groundG = this.add.graphics();
-          groundG.setDepth(-100000);
-          objects.push(groundG);
-
-          this.drawChunkGround(chunk, groundG);
-
-          const borderG = this.add.graphics();
-          borderG.setDepth(99980);
-          objects.push(borderG);
-          debugObjects.push(borderG);
-          this.drawChunkBorder(chunk, borderG);
-
-          this.drawChunkWalls(chunk, objects);
-
-          const label = this.add
-            .text(0, 0, `${cx},${cy}`, {
-              fontFamily: "Arial",
-              fontSize: "14px",
-              color: "#ffffff88",
-              backgroundColor: "#00000044",
-              padding: { x: 4, y: 2 },
-            })
-            .setDepth(99990);
-
-          const center = this.gridToWorld(cx * CHUNK_SIZE + 16, cy * CHUNK_SIZE + 16);
-          label.setPosition(center.x - 18, center.y - 10);
-          objects.push(label);
-          debugObjects.push(label);
-
-          this.renderedChunks.set(chunkKey(cx, cy), { objects, debugObjects });
-          this.applyChunkDebugVisibility();
-        }
-
-        drawChunkGround(chunk, g) {
-          for (let y = 0; y < CHUNK_SIZE; y++) {
-            for (let x = 0; x < CHUNK_SIZE; x++) {
-              const gx = chunk.cx * CHUNK_SIZE + x;
-              const gy = chunk.cy * CHUNK_SIZE + y;
-              const kind = chunk.ground[y][x];
-              const world = this.gridToWorld(gx + 0.5, gy + 0.5);
-
-              let color = 0x4f7f3a;
-              if (kind === TileKind.Road) color = 0x575757;
-              if (kind === TileKind.Floor) color = 0x8b785c;
-              if (kind === TileKind.Dirt) color = 0x6d5b3b;
-
-              g.fillStyle(color, 1);
-              g.lineStyle(1, 0x1e1e1e, 0.18);
-
-              g.beginPath();
-              g.moveTo(world.x, world.y - TILE_H / 2);
-              g.lineTo(world.x + TILE_W / 2, world.y);
-              g.lineTo(world.x, world.y + TILE_H / 2);
-              g.lineTo(world.x - TILE_W / 2, world.y);
-              g.closePath();
-              g.fillPath();
-              g.strokePath();
+          for (let ly = 0; ly < CHUNK_SIZE; ly++) {
+            for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+              const kind = level.ground[ly][lx];
+              if (kind === TileKind.Void) continue;
+              const gx = cx * CHUNK_SIZE + lx + 0.5;
+              const gy = cy * CHUNK_SIZE + ly + 0.5;
+              const world = this.gridToWorld(gx, gy, this.playerZ);
+              objects.push(this.drawGroundTile(world.x, world.y, kind, gx, gy));
             }
           }
+
+          this.drawAllWallsForLevel(objects, level, cx, cy);
+          this.drawStairsForLevel(objects, level, cx, cy);
+          this.drawChunkLabel(objects, chunk, cx, cy);
         }
 
-        drawChunkBorder(chunk, g) {
-          const sx = chunk.cx * CHUNK_SIZE;
-          const sy = chunk.cy * CHUNK_SIZE;
-
-          const p1 = this.gridToWorld(sx, sy);
-          const p2 = this.gridToWorld(sx + CHUNK_SIZE, sy);
-          const p3 = this.gridToWorld(sx + CHUNK_SIZE, sy + CHUNK_SIZE);
-          const p4 = this.gridToWorld(sx, sy + CHUNK_SIZE);
-
-          g.lineStyle(3, 0xffffff, 0.15);
-          g.lineBetween(p1.x, p1.y, p2.x, p2.y);
-          g.lineBetween(p2.x, p2.y, p3.x, p3.y);
-          g.lineBetween(p3.x, p3.y, p4.x, p4.y);
-          g.lineBetween(p4.x, p4.y, p1.x, p1.y);
+        redrawLoadedChunks() {
+          const existing = Array.from(this.loadedChunkObjects.keys()).map((key) => key.split(",").map(Number));
+          for (const [cx, cy] of existing) this.drawChunk(cx, cy);
         }
 
-        drawChunkWalls(chunk, objects) {
+        drawGroundTile(worldX, worldY, kind, globalX, globalY) {
+          const g = this.add.graphics({ x: worldX, y: worldY });
+          let color = 0x4f7f3a;
+          if (kind === TileKind.Road) color = 0x565656;
+          if (kind === TileKind.Floor) color = 0x8b785c;
+          if (kind === TileKind.Dirt) color = 0x6f5a35;
+          if (kind === TileKind.Concrete) color = 0x70757a;
+          g.fillStyle(color, 1);
+          g.lineStyle(1, 0x1e1e1e, 0.23);
+          g.beginPath();
+          g.moveTo(0, -TILE_H / 2);
+          g.lineTo(TILE_W / 2, 0);
+          g.lineTo(0, TILE_H / 2);
+          g.lineTo(-TILE_W / 2, 0);
+          g.closePath();
+          g.fillPath();
+          g.strokePath();
+          g.setDepth(globalX + globalY + this.playerZ * 10000);
+          return g;
+        }
+
+        drawAllWallsForLevel(objects, level, cx, cy) {
           for (let y = 0; y < CHUNK_SIZE + 1; y++) {
             for (let x = 0; x < CHUNK_SIZE; x++) {
-              if (!chunk.hWalls[y][x]) continue;
-
-              const gx = chunk.cx * CHUNK_SIZE + x;
-              const gy = chunk.cy * CHUNK_SIZE + y;
-              objects.push(this.drawWallSegment(gx, gy, gx + 1, gy));
+              if (level.hWalls[y][x]) {
+                const gx = cx * CHUNK_SIZE + x;
+                const gy = cy * CHUNK_SIZE + y;
+                objects.push(this.drawWallSegment(gx, gy, gx + 1, gy));
+              }
             }
           }
-
           for (let y = 0; y < CHUNK_SIZE; y++) {
             for (let x = 0; x < CHUNK_SIZE + 1; x++) {
-              if (!chunk.vWalls[y][x]) continue;
-
-              const gx = chunk.cx * CHUNK_SIZE + x;
-              const gy = chunk.cy * CHUNK_SIZE + y;
-              objects.push(this.drawWallSegment(gx, gy, gx, gy + 1));
+              if (level.vWalls[y][x]) {
+                const gx = cx * CHUNK_SIZE + x;
+                const gy = cy * CHUNK_SIZE + y;
+                objects.push(this.drawWallSegment(gx, gy, gx, gy + 1));
+              }
             }
           }
         }
 
         drawWallSegment(x1, y1, x2, y2) {
-          const p1 = this.gridToWorld(x1, y1);
-          const p2 = this.gridToWorld(x2, y2);
+          const p1 = this.gridToWorld(x1, y1, this.playerZ);
+          const p2 = this.gridToWorld(x2, y2, this.playerZ);
           const h = 34;
-
           const g = this.add.graphics();
-
-          g.fillStyle(0x5d5247, 1);
+          g.fillStyle(this.playerZ === -1 ? 0x43484f : 0x5d5247, 1);
           g.lineStyle(2, 0x241f1a, 0.75);
-
           g.beginPath();
           g.moveTo(p1.x, p1.y);
           g.lineTo(p2.x, p2.y);
@@ -1643,45 +917,228 @@
           g.closePath();
           g.fillPath();
           g.strokePath();
-
-          g.lineStyle(3, 0x87796b, 0.95);
+          g.lineStyle(3, this.playerZ === -1 ? 0x7a8188 : 0x87796b, 0.95);
           g.lineBetween(p1.x, p1.y - h, p2.x, p2.y - h);
-
-          const depth = (x1 + x2 + y1 + y2) / 2 + 0.45;
-          g.setDepth(depth);
-
+          g.setDepth(x1 + y1 + this.playerZ * 10000 + 0.45);
           return g;
+        }
+
+        drawStairsForLevel(objects, level, cx, cy) {
+          for (const stair of level.stairs) {
+            const gx = cx * CHUNK_SIZE + stair.x;
+            const gy = cy * CHUNK_SIZE + stair.y;
+            const world = this.gridToWorld(gx, gy, this.playerZ);
+            const g = this.add.graphics({ x: world.x, y: world.y - 5 });
+            const color = stair.dir === "up" ? 0xf4d35e : 0x8ecae6;
+            g.fillStyle(color, 0.92);
+            g.lineStyle(2, 0x1d1d1d, 0.8);
+            g.fillRoundedRect(-18, -12, 36, 24, 6);
+            g.strokeRoundedRect(-18, -12, 36, 24, 6);
+            g.lineStyle(2, 0x1d1d1d, 0.75);
+            g.lineBetween(-12, 4, 12, 4);
+            g.lineBetween(-9, -2, 9, -2);
+            g.lineBetween(-6, -8, 6, -8);
+            g.setDepth(gx + gy + this.playerZ * 10000 + 0.8);
+            objects.push(g);
+          }
+        }
+
+        drawChunkLabel(objects, chunk, cx, cy) {
+          if (!this.uiSettings.debug) return;
+          const world = this.gridToWorld(cx * CHUNK_SIZE + 1, cy * CHUNK_SIZE + 1, this.playerZ);
+          const t = this.add
+            .text(world.x, world.y - 50, `${chunkKey(cx, cy)} z:${this.playerZ}`, {
+              fontFamily: "Arial",
+              fontSize: "13px",
+              color: "#ffffff",
+              backgroundColor: "#00000088",
+              padding: { x: 5, y: 3 },
+            })
+            .setDepth(100000);
+          objects.push(t);
+        }
+
+        updatePlayerFacing() {
+          if (!this.rightStick) return;
+          if (this.rightStick.strength > 0.15) {
+            this.facingAngle = Math.atan2(this.rightStick.valueY, this.rightStick.valueX);
+          }
+          if (this.playerArrow) this.playerArrow.setRotation(this.facingAngle);
+        }
+
+        updatePlayerMovement(dt) {
+          if (!this.leftStick) return;
+          if (this.leftStick.strength <= 0.08) return;
+          const dir = this.screenDirectionToGridDirection(this.leftStick.valueX, this.leftStick.valueY);
+          const speed = this.playerSpeed * this.leftStick.strength * dt;
+          const nextX = this.playerGlobalX + dir.x * speed;
+          const nextY = this.playerGlobalY + dir.y * speed;
+          if (this.canMoveX(this.playerGlobalX, nextX, this.playerGlobalY)) this.playerGlobalX = nextX;
+          if (this.canMoveY(this.playerGlobalY, nextY, this.playerGlobalX)) this.playerGlobalY = nextY;
+        }
+
+        screenDirectionToGridDirection(screenX, screenY) {
+          const a = screenX / (TILE_W / 2);
+          const b = screenY / (TILE_H / 2);
+          let gridX = (a + b) / 2;
+          let gridY = (b - a) / 2;
+          const len = Math.hypot(gridX, gridY);
+          if (len <= 0.001) return { x: 0, y: 0 };
+          return { x: gridX / len, y: gridY / len };
+        }
+
+        canMoveX(currentX, nextX, y) {
+          const r = this.playerRadius;
+          if (!this.isWalkableForPlayer(nextX, y)) return false;
+          const sampleYs = [y - r, y, y + r];
+          if (nextX > currentX) {
+            const oldEdge = currentX + r;
+            const newEdge = nextX + r;
+            for (let xWall = Math.floor(oldEdge) + 1; xWall <= Math.floor(newEdge); xWall++) {
+              for (const sampleY of sampleYs) if (this.hasVerticalWallGlobal(xWall, Math.floor(sampleY))) return false;
+            }
+          } else if (nextX < currentX) {
+            const oldEdge = currentX - r;
+            const newEdge = nextX - r;
+            for (let xWall = Math.floor(oldEdge); xWall >= Math.floor(newEdge) + 1; xWall--) {
+              for (const sampleY of sampleYs) if (this.hasVerticalWallGlobal(xWall, Math.floor(sampleY))) return false;
+            }
+          }
+          return true;
+        }
+
+        canMoveY(currentY, nextY, x) {
+          const r = this.playerRadius;
+          if (!this.isWalkableForPlayer(x, nextY)) return false;
+          const sampleXs = [x - r, x, x + r];
+          if (nextY > currentY) {
+            const oldEdge = currentY + r;
+            const newEdge = nextY + r;
+            for (let yWall = Math.floor(oldEdge) + 1; yWall <= Math.floor(newEdge); yWall++) {
+              for (const sampleX of sampleXs) if (this.hasHorizontalWallGlobal(yWall, Math.floor(sampleX))) return false;
+            }
+          } else if (nextY < currentY) {
+            const oldEdge = currentY - r;
+            const newEdge = nextY - r;
+            for (let yWall = Math.floor(oldEdge); yWall >= Math.floor(newEdge) + 1; yWall--) {
+              for (const sampleX of sampleXs) if (this.hasHorizontalWallGlobal(yWall, Math.floor(sampleX))) return false;
+            }
+          }
+          return true;
+        }
+
+        isWalkableForPlayer(x, y) {
+          const r = this.playerRadius;
+          return (
+            this.isWalkableTileAt(x - r, y - r) &&
+            this.isWalkableTileAt(x + r, y - r) &&
+            this.isWalkableTileAt(x - r, y + r) &&
+            this.isWalkableTileAt(x + r, y + r)
+          );
+        }
+
+        isWalkableTileAt(globalX, globalY) {
+          const loc = this.globalToLocal(globalX, globalY);
+          const chunk = this.getChunk(loc.cx, loc.cy);
+          const level = chunk.levels.get(this.playerZ);
+          if (!level) return false;
+          if (!this.isInsideLocal(loc.lx, loc.ly)) return false;
+          return level.ground[loc.ly][loc.lx] !== TileKind.Void;
+        }
+
+        hasVerticalWallGlobal(xWall, tileY) {
+          const ownerChunkX = floorDiv(xWall - 0.000001, CHUNK_SIZE);
+          const chunkY = floorDiv(tileY, CHUNK_SIZE);
+          const lx = xWall - ownerChunkX * CHUNK_SIZE;
+          const ly = positiveMod(tileY, CHUNK_SIZE);
+          const chunk = this.getChunk(ownerChunkX, chunkY);
+          const level = chunk.levels.get(this.playerZ);
+          if (!level) return false;
+          if (lx < 0 || lx > CHUNK_SIZE || ly < 0 || ly >= CHUNK_SIZE) return false;
+          return level.vWalls[ly][lx];
+        }
+
+        hasHorizontalWallGlobal(yWall, tileX) {
+          const ownerChunkY = floorDiv(yWall - 0.000001, CHUNK_SIZE);
+          const chunkX = floorDiv(tileX, CHUNK_SIZE);
+          const lx = positiveMod(tileX, CHUNK_SIZE);
+          const ly = yWall - ownerChunkY * CHUNK_SIZE;
+          const chunk = this.getChunk(chunkX, ownerChunkY);
+          const level = chunk.levels.get(this.playerZ);
+          if (!level) return false;
+          if (lx < 0 || lx >= CHUNK_SIZE || ly < 0 || ly > CHUNK_SIZE) return false;
+          return level.hWalls[ly][lx];
+        }
+
+        updateNearbyAction() {
+          const action = this.findNearbyStair();
+          this.nearAction = action;
+          if (!this.actionButton) return;
+          if (action) {
+            this.actionButton.textContent = action.label;
+            this.actionButton.style.display = "block";
+          } else {
+            this.actionButton.style.display = "none";
+          }
+        }
+
+        findNearbyStair() {
+          const loc = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
+          const chunk = this.getChunk(loc.cx, loc.cy);
+          const level = chunk.levels.get(this.playerZ);
+          if (!level) return null;
+          let best = null;
+          let bestDist = Infinity;
+          for (const stair of level.stairs) {
+            const gx = loc.cx * CHUNK_SIZE + stair.x;
+            const gy = loc.cy * CHUNK_SIZE + stair.y;
+            const dist = Math.hypot(this.playerGlobalX - gx, this.playerGlobalY - gy);
+            if (dist < 1.25 && dist < bestDist) {
+              best = { ...stair, gx, gy, chunkX: loc.cx, chunkY: loc.cy };
+              bestDist = dist;
+            }
+          }
+          return best;
+        }
+
+        performNearbyAction() {
+          if (!this.nearAction) return;
+          this.playerZ = this.nearAction.targetZ;
+          this.playerGlobalX = this.nearAction.chunkX * CHUNK_SIZE + this.nearAction.targetX;
+          this.playerGlobalY = this.nearAction.chunkY * CHUNK_SIZE + this.nearAction.targetY;
+          this.redrawLoadedChunks();
+          this.syncPlayerWorldPosition();
+          this.updateNearbyAction();
+        }
+
+        stepOneTileForward() {
+          const dir = this.screenDirectionToGridDirection(Math.cos(this.facingAngle), Math.sin(this.facingAngle));
+          const targetX = this.playerGlobalX + Math.round(dir.x);
+          const targetY = this.playerGlobalY + Math.round(dir.y);
+          if (this.isWalkableForPlayer(targetX, targetY)) {
+            this.playerGlobalX = targetX;
+            this.playerGlobalY = targetY;
+            this.updateCenterChunkIfNeeded();
+            this.syncPlayerWorldPosition();
+          }
         }
 
         syncPlayerWorldPosition() {
           if (!this.player) return;
-
-          const world = this.gridToWorld(this.playerGlobalX, this.playerGlobalY);
-
+          const world = this.gridToWorld(this.playerGlobalX, this.playerGlobalY, this.playerZ);
           this.player.setPosition(world.x, world.y - 8);
-          this.player.setDepth(this.playerGlobalX + this.playerGlobalY + 0.7);
+          this.player.setDepth(this.playerGlobalX + this.playerGlobalY + this.playerZ * 10000 + 0.7);
         }
 
-        getPlayerChunkX() {
-          return floorDiv(this.playerGlobalX, CHUNK_SIZE);
-        }
-
-        getPlayerChunkY() {
-          return floorDiv(this.playerGlobalY, CHUNK_SIZE);
-        }
-
-        globalToLocal(globalX, globalY) {
+        gridToWorld(gridX, gridY, z) {
           return {
-            x: positiveMod(globalX, CHUNK_SIZE),
-            y: positiveMod(globalY, CHUNK_SIZE),
+            x: MAP_OFFSET_X + (gridX - gridY) * (TILE_W / 2),
+            y: MAP_OFFSET_Y + (gridX + gridY) * (TILE_H / 2) - z * FLOOR_HEIGHT_PX,
           };
         }
 
-        gridToWorld(gridX, gridY) {
-          return {
-            x: WORLD_OFFSET_X + (gridX - gridY) * (TILE_W / 2),
-            y: WORLD_OFFSET_Y + (gridX + gridY) * (TILE_H / 2),
-          };
+        isInsideLocal(x, y) {
+          return x >= 0 && y >= 0 && x < CHUNK_SIZE && y < CHUNK_SIZE;
         }
       }
 
