@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Zombie Iso Prototype v0.7.4</title>
+    <title>Zombie Iso Prototype v0.7.5</title>
 
     <style>
       :root {
@@ -199,8 +199,8 @@
           <button class="panel-btn" id="close-settings">Закрыть</button>
         </div>
         <div class="panel-note">
-          <span class="pill">v0.7.4</span>
-          Масштаб: 1 тайл ≈ 1 метр, человек ≈ 1.8 м, этаж ≈ 3 м. Лестница-рампа 45° на 3 тайла, второй этаж видит первый этаж и улицу снизу.
+          <span class="pill">v0.7.5</span>
+          Рампа стала проходной в обе стороны. Вход и выход только по прямой, по бокам видимые перила. На втором этаже над 2-й и 3-й клеткой марша пола нет.
         </div>
       </div>
     </div>
@@ -218,7 +218,7 @@
       const PLAYER_HEIGHT_PX = Math.round(PERSON_HEIGHT_M * PX_PER_METER_Z);
       const FLOOR_HEIGHT_PX = STOREY_HEIGHT_M * PX_PER_METER_Z;
       const WALL_HEIGHT_PX = FLOOR_HEIGHT_PX;
-      const SETTINGS_KEY = "zombie_iso_ui_v074_scale_floor_visibility";
+      const SETTINGS_KEY = "zombie_iso_ui_v075_ramp_rails_floorholes";
 
       const TileKind = {
         Void: -1,
@@ -843,8 +843,11 @@
             dir: "east",
             fromZ: 0,
             toZ: 1,
+            approach: 1,
+            landing: 1,
+            railings: true,
           };
-          this.paintRect(z1, ramp.x, ramp.y, 2, ramp.width, TileKind.Void);
+          this.paintRect(z1, ramp.x + 1, ramp.y, 2, ramp.width, TileKind.Void);
           z0.ramps.push(ramp);
           z1.ramps.push(ramp);
         }
@@ -865,15 +868,18 @@
             dir: "east",
             fromZ: 0,
             toZ: 1,
+            approach: 1,
+            landing: 1,
             label: "ЛЕСТНИЦА 45° ↑",
             test: true,
+            railings: true,
           };
 
-          // Второй этаж: из трёх клеток лестничного марша первые две без пола,
-          // последняя клетка и площадка после марша имеют пол.
-          this.paintRect(z1, ramp.x, ramp.y, 2, ramp.width, TileKind.Void);
-          this.paintRect(z1, ramp.x + 2, ramp.y, 7, ramp.width, TileKind.Concrete);
+          // На втором этаже пол есть над 1-й клеткой марша и вокруг лестницы,
+          // но над 2-й и 3-й клеткой пола нет — это проём под подъём.
+          this.paintRect(z1, ramp.x, ramp.y, 8, ramp.width, TileKind.Concrete);
           this.paintRect(z1, ramp.x + 3, ramp.y - 1, 5, 3, TileKind.Concrete);
+          this.paintRect(z1, ramp.x + 1, ramp.y, 2, ramp.width, TileKind.Void);
 
           z0.ramps.push(ramp);
           z1.ramps.push(ramp);
@@ -1064,6 +1070,34 @@
                 y: Phaser.Math.Linear(d.y, c.y, t),
               };
               g.lineBetween(left.x, left.y, right.x, right.y);
+            }
+
+            if (ramp.railings) {
+              const railLift = 16;
+              const postLift = 10;
+              const leftLow = { x: a.x, y: a.y - railLift };
+              const leftHigh = { x: b.x, y: b.y - railLift };
+              const rightLow = { x: d.x, y: d.y - railLift };
+              const rightHigh = { x: c.x, y: c.y - railLift };
+              g.lineStyle(4, 0xe9ddb2, 0.98);
+              g.lineBetween(leftLow.x, leftLow.y, leftHigh.x, leftHigh.y);
+              g.lineBetween(rightLow.x, rightLow.y, rightHigh.x, rightHigh.y);
+              g.lineStyle(2, 0x4d4124, 0.95);
+              g.lineBetween(a.x, a.y - postLift, leftLow.x, leftLow.y);
+              g.lineBetween(b.x, b.y - postLift, leftHigh.x, leftHigh.y);
+              g.lineBetween(d.x, d.y - postLift, rightLow.x, rightLow.y);
+              g.lineBetween(c.x, c.y - postLift, rightHigh.x, rightHigh.y);
+              const railPosts = Math.max(2, len);
+              for (let i = 1; i < railPosts; i++) {
+                const t = i / railPosts;
+                const baseL = { x: Phaser.Math.Linear(a.x, b.x, t), y: Phaser.Math.Linear(a.y, b.y, t) };
+                const topL = { x: baseL.x, y: baseL.y - railLift };
+                const baseR = { x: Phaser.Math.Linear(d.x, c.x, t), y: Phaser.Math.Linear(d.y, c.y, t) };
+                const topR = { x: baseR.x, y: baseR.y - railLift };
+                g.lineStyle(2, 0x4d4124, 0.95);
+                g.lineBetween(baseL.x, baseL.y - postLift, topL.x, topL.y);
+                g.lineBetween(baseR.x, baseR.y - postLift, topR.x, topR.y);
+              }
             }
 
             const rampDepth = gx + gy + Math.max(ramp.fromZ, ramp.toZ) * 10000 + 0.65;
@@ -1299,12 +1333,17 @@
         }
 
         isPointInsideRampBounds(x, y, bounds, eps = 0) {
-          return x >= bounds.minX - eps && x <= bounds.maxX + eps && y >= bounds.minY - eps && y <= bounds.maxY + eps;
+          const sideMargin = 0.22;
+          if (bounds.fromEnd.axis === "x") {
+            return x >= bounds.minX - eps && x <= bounds.maxX + eps && y >= bounds.minY + sideMargin - eps && y <= bounds.maxY - sideMargin + eps;
+          }
+          return y >= bounds.minY - eps && y <= bounds.maxY + eps && x >= bounds.minX + sideMargin - eps && x <= bounds.maxX - sideMargin + eps;
         }
 
         crossesRampEnd(currentX, currentY, nextX, nextY, bounds, endName) {
           const end = endName === "from" ? bounds.fromEnd : bounds.toEnd;
           const eps = 0.035;
+          const sideMargin = 0.22;
           const crossesLine = (a, b, value) => {
             if (Math.abs(a - b) < 0.0001) return false;
             return Math.min(a, b) <= value + eps && Math.max(a, b) >= value - eps;
@@ -1314,22 +1353,24 @@
             const otherNow = currentY;
             const otherNext = nextY;
             const otherInside =
-              otherNow >= end.minOther - eps &&
-              otherNow <= end.maxOther + eps &&
-              otherNext >= end.minOther - eps &&
-              otherNext <= end.maxOther + eps;
-            if (!otherInside) return false;
+              otherNow >= end.minOther + sideMargin - eps &&
+              otherNow <= end.maxOther - sideMargin + eps &&
+              otherNext >= end.minOther + sideMargin - eps &&
+              otherNext <= end.maxOther - sideMargin + eps;
+            const mostlyForward = Math.abs(nextX - currentX) >= Math.abs(nextY - currentY);
+            if (!otherInside || !mostlyForward) return false;
             return crossesLine(currentX, nextX, end.value);
           }
 
           const otherNow = currentX;
           const otherNext = nextX;
           const otherInside =
-            otherNow >= end.minOther - eps &&
-            otherNow <= end.maxOther + eps &&
-            otherNext >= end.minOther - eps &&
-            otherNext <= end.maxOther + eps;
-          if (!otherInside) return false;
+            otherNow >= end.minOther + sideMargin - eps &&
+            otherNow <= end.maxOther - sideMargin + eps &&
+            otherNext >= end.minOther + sideMargin - eps &&
+            otherNext <= end.maxOther - sideMargin + eps;
+          const mostlyForward = Math.abs(nextY - currentY) >= Math.abs(nextX - currentX);
+          if (!otherInside || !mostlyForward) return false;
           return crossesLine(currentY, nextY, end.value);
         }
 
