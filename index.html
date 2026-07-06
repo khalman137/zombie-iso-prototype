@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Zombie Iso PNG Zip Loader v0.8.5</title>
+  <title>Zombie Iso PNG Zip Loader v0.8.7</title>
   <style>
     :root {
       --safe-top: env(safe-area-inset-top, 0px);
@@ -148,7 +148,7 @@
         <button class="panel-btn" id="close-settings">Закрыть</button>
       </div>
       <div class="panel-note">
-        <span class="pill">v0.8.5 png zip loader</span>
+        <span class="pill">v0.8.7 png zip loader</span>
         Карта читается из архива <b>central_chunk_pngs.zip</b>. Центральный чанк берётся из PNG-слоёв, соседние чанки пока простая трава.
       </div>
     </div>
@@ -162,7 +162,7 @@ const MAP_OFFSET_X = 900;
 const MAP_OFFSET_Y = 70;
 const FLOOR_HEIGHT_PX = 84;
 const WALL_HEIGHT_PX = 84;
-const ARCHIVE_URL = "central_chunk_pngs.zip?v=6";
+const ARCHIVE_URL = "central_chunk_pngs.zip?v=8";
 const SETTINGS_KEY = "zombie_iso_png_loader_v081";
 
 const TileKind = {
@@ -556,7 +556,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
     this.infoText.setVisible(true);
     const loc = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
     this.infoText.setText(
-      `v0.8.5 PNG ZIP loader\n` +
+      `v0.8.7 PNG ZIP loader\n` +
       `archive: ${ARCHIVE_URL}\n` +
       `chunk: ${loc.cx},${loc.cy} z:${this.playerZ} view:${this.renderZ}\n` +
       `local: ${loc.x.toFixed(2)},${loc.y.toFixed(2)}\n` +
@@ -1095,9 +1095,23 @@ class IsoPngLoaderScene extends Phaser.Scene {
     body.setStrokeStyle(2, 0x102d63, 1);
     const head = this.add.circle(0, -43, 9, 0xe2b887, 1);
     head.setStrokeStyle(2, 0x5b3a28, 1);
+    this.playerHead = head;
     this.playerArrow = this.add.triangle(0, -15, 0, -7, 28, 0, 0, 7, 0xffdd66, 1);
     this.playerArrow.setStrokeStyle(2, 0x7a5a00, 1);
     this.player.add([shadow, body, head, this.playerArrow]);
+
+    // Верхняя часть персонажа отдельным слоем.
+    // Это не "только голова": это видимая часть тела над плоскостью пола.
+    this.playerUpperOverlay = this.add.container(0, 0);
+    const overlayBody = this.add.ellipse(0, -28, 18, 22, 0x2c6bd6, 1);
+    overlayBody.setStrokeStyle(2, 0x102d63, 1);
+    const overlayHead = this.add.circle(0, -43, 9, 0xe2b887, 1);
+    overlayHead.setStrokeStyle(2, 0x5b3a28, 1);
+    const overlayArrow = this.add.triangle(0, -24, 0, -7, 23, 0, 0, 7, 0xffdd66, 1);
+    overlayArrow.setStrokeStyle(1, 0x7a5a00, 1);
+    this.playerUpperOverlay.add([overlayBody, overlayHead, overlayArrow]);
+    this.playerUpperOverlay.setVisible(false);
+
     this.syncPlayerWorldPosition();
   }
 
@@ -1191,11 +1205,12 @@ class IsoPngLoaderScene extends Phaser.Scene {
 
   isPointInRampEndZone(x, y, ramp, endName) {
     const b = this.getRampBounds(ramp);
-    const sidePad = 0.42;
-    const endPad = 0.72;
+    // Убираем "пылесос": зона входа остаётся удобной, но больше не захватывает сбоку.
+    const sideInset = 0.06;
+    const endPad = 0.42;
 
     if (ramp.dir === "east" || ramp.dir === "west") {
-      const insideSide = y >= b.minY - sidePad && y <= b.maxY + sidePad;
+      const insideSide = y >= b.minY + sideInset && y <= b.maxY - sideInset;
       if (!insideSide) return false;
       const lowX = ramp.dir === "east" ? b.minX : b.maxX;
       const highX = ramp.dir === "east" ? b.maxX : b.minX;
@@ -1203,7 +1218,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
       return Math.abs(x - target) <= endPad;
     }
 
-    const insideSide = x >= b.minX - sidePad && x <= b.maxX + sidePad;
+    const insideSide = x >= b.minX + sideInset && x <= b.maxX - sideInset;
     if (!insideSide) return false;
     const lowY = ramp.dir === "south" ? b.minY : b.maxY;
     const highY = ramp.dir === "south" ? b.maxY : b.minY;
@@ -1213,11 +1228,13 @@ class IsoPngLoaderScene extends Phaser.Scene {
 
   isMovingTowardRampEnd(moveX, moveY, ramp, endName) {
     const v = this.rampForwardVector(ramp);
-    const dot = moveX * v.x + moveY * v.y;
-    const threshold = 0.0005;
-    // В нижний вход нужно двигаться вверх по маршу, в верхний вход нужно двигаться вниз.
-    if (endName === "low") return dot > threshold;
-    return dot < -threshold;
+    const moveLen = Math.hypot(moveX, moveY);
+    if (moveLen <= 0.0001) return false;
+    const alignment = (moveX * v.x + moveY * v.y) / moveLen;
+    // Захват только если игрок явно двигается вдоль оси лестницы.
+    // Это убирает ситуацию "шёл мимо, а лестница съела".
+    if (endName === "low") return alignment > 0.72;
+    return alignment < -0.72;
   }
 
   getAllRampsNear(x, y) {
@@ -1243,8 +1260,8 @@ class IsoPngLoaderScene extends Phaser.Scene {
 
   isPointInsideRampLane(x, y, ramp) {
     const b = this.getRampBounds(ramp);
-    const sideMargin = 0.12;
-    const endMargin = 0.10;
+    const sideMargin = 0.16;
+    const endMargin = 0.06;
     if (ramp.dir === "east" || ramp.dir === "west") {
       return x >= b.minX - endMargin && x <= b.maxX + endMargin &&
              y >= b.minY + sideMargin && y <= b.maxY - sideMargin;
@@ -1548,14 +1565,42 @@ class IsoPngLoaderScene extends Phaser.Scene {
     return Phaser.Math.Linear(this.activeRamp.fromZ, this.activeRamp.toZ, t);
   }
 
+  getUpperVisibleFraction(visualZ) {
+    if (!this.activeRamp) return 0;
+    const viewZ = this.renderZ ?? this.playerZ;
+    if (viewZ !== this.activeRamp.toZ) return 0;
+
+    // Насколько персонаж ниже плоскости верхнего пола.
+    // 0 = полностью над полом, 1 = почти весь под полом.
+    const below = Phaser.Math.Clamp(viewZ - visualZ, 0, 0.72);
+
+    // Аппроксимация "клиппинга": чем ниже персонаж уходит под пол,
+    // тем меньше верхней части рисуем отдельным слоем.
+    return Phaser.Math.Clamp(1 - below / 0.72, 0.18, 0.92);
+  }
+
   syncPlayerWorldPosition() {
     if (!this.player) return;
     const visualZ = this.getPlayerVisualZ();
     const world = this.gridToWorld(this.playerGlobalX, this.playerGlobalY, visualZ);
     this.player.setPosition(world.x, world.y - 3);
-    // Без огромного depth: персонаж должен быть выше самой рампы,
-    // но не должен просвечивать сквозь пол верхнего этажа.
+    // Основной контейнер может уходить под пол.
     this.player.setDepth(this.playerGlobalX + this.playerGlobalY + visualZ * 10000 + 8);
+
+    const visibleFraction = this.getUpperVisibleFraction(visualZ);
+    const showUpperOverlay = visibleFraction > 0 && visibleFraction < 0.91;
+    if (this.playerHead) this.playerHead.setVisible(!showUpperOverlay);
+
+    if (this.playerUpperOverlay) {
+      this.playerUpperOverlay.setVisible(showUpperOverlay);
+      this.playerUpperOverlay.setPosition(world.x, world.y - 3);
+      this.playerUpperOverlay.setScale(1, visibleFraction);
+      this.playerUpperOverlay.setDepth(this.playerGlobalX + this.playerGlobalY + (this.renderZ ?? this.playerZ) * 10000 + 220);
+      if (this.playerArrow) {
+        const overlayArrow = this.playerUpperOverlay.list && this.playerUpperOverlay.list[2];
+        if (overlayArrow) overlayArrow.setRotation(this.facingAngle);
+      }
+    }
   }
 
   gridToWorld(gridX, gridY, z) {
