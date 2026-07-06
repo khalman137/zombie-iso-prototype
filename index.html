@@ -1,1635 +1,1268 @@
 <!doctype html>
 <html lang="ru">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Zombie Iso Prototype v0.7.7</title>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Zombie Iso PNG Zip Loader v0.8</title>
+  <style>
+    :root {
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #111;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    #game {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #111;
+    }
+    canvas { display: block; }
+    #dom-ui {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483000;
+      pointer-events: none;
+      font-family: Arial, sans-serif;
+    }
+    .dom-button {
+      pointer-events: auto;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: rgba(12, 12, 12, 0.72);
+      color: #fff;
+      border-radius: 14px;
+      min-width: 46px;
+      min-height: 42px;
+      padding: 8px 12px;
+      font-size: 18px;
+      font-weight: 700;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(7px);
+      -webkit-backdrop-filter: blur(7px);
+      touch-action: manipulation;
+    }
+    #settings-btn {
+      position: absolute;
+      right: calc(10px + var(--safe-right));
+      top: 50%;
+      transform: translateY(-50%);
+      width: 48px;
+      height: 48px;
+      padding: 0;
+      border-radius: 16px;
+      font-size: 23px;
+    }
+    #settings-panel {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(92vw, 420px);
+      max-height: min(82vh, 520px);
+      overflow-y: auto;
+      display: none;
+      pointer-events: auto;
+      color: #fff;
+      background: rgba(12, 12, 12, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 18px;
+      box-shadow: 0 12px 42px rgba(0, 0, 0, 0.58);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      padding: 14px;
+      box-sizing: border-box;
+      touch-action: manipulation;
+    }
+    #settings-panel h2 { margin: 0 0 10px; font-size: 19px; }
+    .panel-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    .panel-row.single { grid-template-columns: 1fr; }
+    .panel-btn {
+      pointer-events: auto;
+      min-height: 42px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      touch-action: manipulation;
+    }
+    .panel-note {
+      margin-top: 10px;
+      font-size: 12px;
+      line-height: 1.35;
+      color: rgba(255,255,255,0.75);
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.14);
+    }
+  </style>
 
-    <style>
-      :root {
-        --safe-top: env(safe-area-inset-top, 0px);
-        --safe-right: env(safe-area-inset-right, 0px);
-        --safe-bottom: env(safe-area-inset-bottom, 0px);
-        --safe-left: env(safe-area-inset-left, 0px);
-      }
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+</head>
 
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        background: #111;
-        touch-action: none;
-        user-select: none;
-        -webkit-user-select: none;
-        -webkit-touch-callout: none;
-      }
+<body>
+  <div id="game"></div>
 
-      #game {
-        position: fixed;
-        inset: 0;
-        width: 100vw;
-        height: 100vh;
-        overflow: hidden;
-        background: #111;
-      }
-
-      canvas {
-        display: block;
-      }
-
-      #dom-ui {
-        position: fixed;
-        inset: 0;
-        z-index: 2147483000;
-        pointer-events: none;
-        font-family: Arial, sans-serif;
-      }
-
-      .dom-button {
-        pointer-events: auto;
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        background: rgba(12, 12, 12, 0.72);
-        color: #fff;
-        border-radius: 14px;
-        min-width: 46px;
-        min-height: 42px;
-        padding: 8px 12px;
-        font-size: 18px;
-        font-weight: 700;
-        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
-        backdrop-filter: blur(7px);
-        -webkit-backdrop-filter: blur(7px);
-        touch-action: manipulation;
-      }
-
-      .dom-button:active {
-        transform: scale(0.96);
-        background: rgba(255, 255, 255, 0.18);
-      }
-
-      #settings-btn {
-        position: absolute;
-        right: calc(10px + var(--safe-right));
-        top: 50%;
-        transform: translateY(-50%);
-        width: 48px;
-        height: 48px;
-        padding: 0;
-        border-radius: 16px;
-        font-size: 23px;
-      }
-
-      #action-btn {
-        position: absolute;
-        left: 50%;
-        bottom: calc(128px + var(--safe-bottom));
-        transform: translateX(-50%);
-        display: none;
-        min-width: 116px;
-        font-size: 16px;
-      }
-
-      #settings-panel {
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        width: min(92vw, 430px);
-        max-height: min(82vh, 560px);
-        overflow-y: auto;
-        display: none;
-        pointer-events: auto;
-        color: #fff;
-        background: rgba(12, 12, 12, 0.88);
-        border: 1px solid rgba(255, 255, 255, 0.28);
-        border-radius: 18px;
-        box-shadow: 0 12px 42px rgba(0, 0, 0, 0.58);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        padding: 14px;
-        box-sizing: border-box;
-        touch-action: manipulation;
-      }
-
-      #settings-panel h2 {
-        margin: 0 0 10px;
-        font-size: 19px;
-      }
-
-      .panel-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        margin: 8px 0;
-      }
-
-      .panel-row.single {
-        grid-template-columns: 1fr;
-      }
-
-      .panel-btn {
-        pointer-events: auto;
-        min-height: 42px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.1);
-        color: #fff;
-        font-size: 15px;
-        font-weight: 700;
-        touch-action: manipulation;
-      }
-
-      .panel-btn:active {
-        transform: scale(0.98);
-        background: rgba(255, 255, 255, 0.2);
-      }
-
-      .panel-note {
-        margin-top: 10px;
-        font-size: 12px;
-        line-height: 1.35;
-        color: rgba(255, 255, 255, 0.72);
-      }
-
-      .pill {
-        display: inline-block;
-        padding: 2px 7px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.14);
-      }
-    </style>
-
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
-  </head>
-
-  <body>
-    <div id="game"></div>
-
-    <div id="dom-ui">
-      <button id="settings-btn" class="dom-button" aria-label="Настройки">⚙</button>
-      <button id="action-btn" class="dom-button" aria-label="Действие">Действие</button>
-
-      <div id="settings-panel">
-        <h2>Настройки</h2>
-        <div class="panel-row">
-          <button class="panel-btn" id="stick-up">Стики ↑</button>
-          <button class="panel-btn" id="stick-down">Стики ↓</button>
-        </div>
-        <div class="panel-row">
-          <button class="panel-btn" id="stick-in">Ближе к центру</button>
-          <button class="panel-btn" id="stick-out">К краям</button>
-        </div>
-        <div class="panel-row">
-          <button class="panel-btn" id="stick-bigger">Стики +</button>
-          <button class="panel-btn" id="stick-smaller">Стики −</button>
-        </div>
-        <div class="panel-row">
-          <button class="panel-btn" id="stick-more">Ярче</button>
-          <button class="panel-btn" id="stick-less">Прозрачнее</button>
-        </div>
-        <div class="panel-row">
-          <button class="panel-btn" id="debug-toggle">Debug</button>
-          <button class="panel-btn" id="step-tile">Сдвиг 1 тайл</button>
-        </div>
-        <div class="panel-row single">
-          <button class="panel-btn" id="close-settings">Закрыть</button>
-        </div>
-        <div class="panel-note">
-          <span class="pill">v0.7.7</span>
-          Стартовый дом 11×11 вокруг точки появления. От центра идут 4 рампы к четырём стенам: низ у персонажа, верх у стены, с одной клеткой запаса до стены.
-        </div>
+  <div id="dom-ui">
+    <button id="settings-btn" class="dom-button" aria-label="Настройки">⚙</button>
+    <div id="settings-panel">
+      <h2>Настройки</h2>
+      <div class="panel-row">
+        <button class="panel-btn" id="debug-toggle">Debug</button>
+        <button class="panel-btn" id="reset-player">В центр</button>
+      </div>
+      <div class="panel-row">
+        <button class="panel-btn" id="stick-up">Стики ↑</button>
+        <button class="panel-btn" id="stick-down">Стики ↓</button>
+      </div>
+      <div class="panel-row">
+        <button class="panel-btn" id="stick-in">К центру</button>
+        <button class="panel-btn" id="stick-out">К краям</button>
+      </div>
+      <div class="panel-row single">
+        <button class="panel-btn" id="close-settings">Закрыть</button>
+      </div>
+      <div class="panel-note">
+        <span class="pill">v0.8 png zip loader</span>
+        Карта читается из архива <b>central_chunk_pngs.zip</b>. Центральный чанк берётся из PNG-слоёв, соседние чанки пока простая трава.
       </div>
     </div>
+  </div>
 
-    <script>
-      const TILE_W = 64;
-      const TILE_H = 32;
-      const CHUNK_SIZE = 32;
-      const MAP_OFFSET_X = 900;
-      const MAP_OFFSET_Y = 70;
-      const METERS_PER_TILE = 1;
-      const PX_PER_METER_Z = 28;
-      const PERSON_HEIGHT_M = 1.8;
-      const STOREY_HEIGHT_M = 3;
-      const PLAYER_HEIGHT_PX = Math.round(PERSON_HEIGHT_M * PX_PER_METER_Z);
-      const FLOOR_HEIGHT_PX = STOREY_HEIGHT_M * PX_PER_METER_Z;
-      const WALL_HEIGHT_PX = FLOOR_HEIGHT_PX;
-      const SETTINGS_KEY = "zombie_iso_ui_v077_centered_ramps";
+<script>
+const TILE_W = 64;
+const TILE_H = 32;
+const CHUNK_SIZE = 32;
+const MAP_OFFSET_X = 900;
+const MAP_OFFSET_Y = 70;
+const FLOOR_HEIGHT_PX = 84;
+const WALL_HEIGHT_PX = 84;
+const ARCHIVE_URL = "central_chunk_pngs.zip?v=1";
+const SETTINGS_KEY = "zombie_iso_png_loader_v08";
 
-      const TileKind = {
-        Void: -1,
-        Grass: 0,
-        Road: 1,
-        Floor: 2,
-        Dirt: 3,
-        Concrete: 4,
+const TileKind = {
+  Void: -1,
+  Grass: 0,
+  Road: 1,
+  Floor: 2,
+  Dirt: 3,
+  Concrete: 4,
+};
+
+const COLORS = {
+  void: "000000",
+  grass: "4c994c",
+  road: "6e6e6e",
+  concrete: "5c5c5c",
+  dirt: "8c6e46",
+  floor: "b8a37a",
+  spawn: "00ffff",
+  rampEast: "ff0000",
+  rampWest: "00ff00",
+  rampSouth: "0000ff",
+  rampNorth: "ffff00",
+  wall: "ffffff",
+  door: "ff8800",
+  window: "00ffff",
+};
+
+const DEFAULT_UI = {
+  debug: true,
+  stickCenterOffset: 0.22,
+  stickBottomOffset: 0.24,
+  stickRadius: 56,
+  stickAlpha: 0.34,
+};
+
+function setupTelegram() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (!tg) return;
+  try {
+    tg.ready();
+    tg.expand();
+    if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+    if (tg.requestFullscreen) tg.requestFullscreen();
+  } catch (error) {}
+}
+
+function bindPress(element, handler) {
+  if (!element) return;
+  let last = 0;
+  const wrapped = (event) => {
+    const now = Date.now();
+    if (now - last < 160) return;
+    last = now;
+    event.preventDefault();
+    event.stopPropagation();
+    handler(event);
+  };
+  element.addEventListener("pointerup", wrapped, { passive: false });
+  element.addEventListener("touchend", wrapped, { passive: false });
+  element.addEventListener("click", wrapped, { passive: false });
+}
+
+function loadUiSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return raw ? { ...DEFAULT_UI, ...JSON.parse(raw) } : { ...DEFAULT_UI };
+  } catch (e) {
+    return { ...DEFAULT_UI };
+  }
+}
+function saveUiSettings(settings) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
+}
+
+function hexOf(r, g, b) {
+  const h = (n) => n.toString(16).padStart(2, "0");
+  return `${h(r)}${h(g)}${h(b)}`;
+}
+
+function chunkKey(cx, cy) {
+  return `${cx},${cy}`;
+}
+function floorDiv(value, size) {
+  return Math.floor(value / size);
+}
+function positiveMod(value, size) {
+  return ((value % size) + size) % size;
+}
+
+class PixelLayer {
+  constructor(width, height, data) {
+    this.width = width;
+    this.height = height;
+    this.data = data;
+  }
+  hexAt(x, y) {
+    if (x < 0 || y < 0 || x >= this.width || y >= this.height) return COLORS.void;
+    const i = (y * this.width + x) * 4;
+    return hexOf(this.data[i], this.data[i + 1], this.data[i + 2]);
+  }
+}
+
+async function imageBlobToPixels(blob) {
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0);
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  return new PixelLayer(canvas.width, canvas.height, img.data);
+}
+
+async function readPngFromZip(zip, name) {
+  const file = zip.file(name);
+  if (!file) return null;
+  const blob = await file.async("blob");
+  return await imageBlobToPixels(blob);
+}
+
+class VirtualStick {
+  constructor(scene, side, settings) {
+    this.scene = scene;
+    this.side = side;
+    this.settings = settings;
+    this.centerX = 0;
+    this.centerY = 0;
+    this.valueX = 0;
+    this.valueY = 0;
+    this.strength = 0;
+    this.radius = settings.stickRadius;
+    this.knobRadius = 22;
+    this.activePointerId = null;
+    this.graphics = scene.add.graphics();
+    this.graphics.setScrollFactor(0);
+    this.graphics.setDepth(1000000);
+    this.layout();
+    scene.input.on("pointerdown", this.onPointerDown, this);
+    scene.input.on("pointermove", this.onPointerMove, this);
+    scene.input.on("pointerup", this.onPointerUp, this);
+    scene.input.on("pointerupoutside", this.onPointerUp, this);
+    scene.scale.on("resize", this.onResize, this);
+    this.draw();
+  }
+  onResize() {
+    this.layout();
+    this.reset();
+  }
+  applySettings() {
+    this.radius = this.settings.stickRadius;
+    this.layout();
+    this.draw();
+  }
+  layout() {
+    const w = this.scene.scale.width;
+    const h = this.scene.scale.height;
+    this.centerY = h - Math.max(76, h * this.settings.stickBottomOffset);
+    const marginX = Math.max(76, w * this.settings.stickCenterOffset);
+    this.centerX = this.side === "left" ? marginX : w - marginX;
+  }
+  isPointerInZone(pointer) {
+    const w = this.scene.scale.width;
+    const h = this.scene.scale.height;
+    const isBottom = pointer.y > h * 0.42;
+    if (this.side === "left") return isBottom && pointer.x < w * 0.5;
+    return isBottom && pointer.x >= w * 0.5;
+  }
+  onPointerDown(pointer) {
+    if (this.activePointerId !== null) return;
+    if (!this.isPointerInZone(pointer)) return;
+    this.activePointerId = pointer.id;
+    this.updateFromPointer(pointer);
+  }
+  onPointerMove(pointer) {
+    if (pointer.id !== this.activePointerId) return;
+    this.updateFromPointer(pointer);
+  }
+  onPointerUp(pointer) {
+    if (pointer.id !== this.activePointerId) return;
+    this.reset();
+  }
+  updateFromPointer(pointer) {
+    const dx = pointer.x - this.centerX;
+    const dy = pointer.y - this.centerY;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.001) {
+      this.valueX = 0;
+      this.valueY = 0;
+      this.strength = 0;
+      this.draw();
+      return;
+    }
+    const clamped = Math.min(dist, this.radius);
+    const nx = dx / dist;
+    const ny = dy / dist;
+    this.valueX = nx * (clamped / this.radius);
+    this.valueY = ny * (clamped / this.radius);
+    this.strength = clamped / this.radius;
+    this.draw();
+  }
+  reset() {
+    this.activePointerId = null;
+    this.valueX = 0;
+    this.valueY = 0;
+    this.strength = 0;
+    this.draw();
+  }
+  draw() {
+    const g = this.graphics;
+    g.clear();
+    const knobX = this.centerX + this.valueX * this.radius;
+    const knobY = this.centerY + this.valueY * this.radius;
+    const a = this.settings.stickAlpha;
+    g.lineStyle(4, 0xffffff, a * 0.95);
+    g.fillStyle(0xffffff, a * 0.22);
+    g.fillCircle(this.centerX, this.centerY, this.radius);
+    g.strokeCircle(this.centerX, this.centerY, this.radius);
+    g.fillStyle(0xffffff, a * 0.55);
+    g.fillCircle(knobX, knobY, this.knobRadius);
+    g.lineStyle(2, 0xffffff, a * 0.55);
+    g.lineBetween(this.centerX, this.centerY, knobX, knobY);
+  }
+}
+
+class IsoPngLoaderScene extends Phaser.Scene {
+  constructor() {
+    super("IsoPngLoaderScene");
+    this.ui = loadUiSettings();
+    this.loadedChunkObjects = new Map();
+    this.chunkData = new Map();
+    this.playerGlobalX = 15.5;
+    this.playerGlobalY = 16.5;
+    this.playerZ = 0;
+    this.playerSpeed = 4.1;
+    this.playerRadius = 0.22;
+    this.player = null;
+    this.playerArrow = null;
+    this.leftStick = null;
+    this.rightStick = null;
+    this.facingAngle = 0;
+    this.activeRamp = null;
+    this.loadingText = null;
+  }
+
+  create() {
+    this.input.addPointer(3);
+    this.setupDom();
+    this.cameras.main.setBackgroundColor("#151515");
+    this.loadingText = this.add.text(16, 16, "Загрузка PNG-архива…", {
+      fontFamily: "Arial",
+      fontSize: "18px",
+      color: "#ffffff",
+      backgroundColor: "#00000099",
+      padding: { x: 10, y: 8 },
+    }).setScrollFactor(0).setDepth(10000000);
+
+    this.loadWorldArchive()
+      .then(() => this.startGame())
+      .catch((error) => this.showLoadError(error));
+  }
+
+  setupDom() {
+    const btn = document.getElementById("settings-btn");
+    const panel = document.getElementById("settings-panel");
+    bindPress(btn, () => {
+      panel.style.display = panel.style.display === "block" ? "none" : "block";
+    });
+    bindPress(document.getElementById("close-settings"), () => panel.style.display = "none");
+    bindPress(document.getElementById("debug-toggle"), () => {
+      this.ui.debug = !this.ui.debug;
+      saveUiSettings(this.ui);
+      this.redrawAll();
+    });
+    bindPress(document.getElementById("reset-player"), () => {
+      const spawn = this.findSpawnInCenterChunk();
+      this.playerGlobalX = spawn.x;
+      this.playerGlobalY = spawn.y;
+      this.playerZ = 0;
+      this.activeRamp = null;
+      this.redrawAll();
+      this.syncPlayerWorldPosition();
+    });
+    bindPress(document.getElementById("stick-up"), () => {
+      this.ui.stickBottomOffset = Math.min(0.38, this.ui.stickBottomOffset + 0.02);
+      this.applyUi();
+    });
+    bindPress(document.getElementById("stick-down"), () => {
+      this.ui.stickBottomOffset = Math.max(0.12, this.ui.stickBottomOffset - 0.02);
+      this.applyUi();
+    });
+    bindPress(document.getElementById("stick-in"), () => {
+      this.ui.stickCenterOffset = Math.min(0.32, this.ui.stickCenterOffset + 0.02);
+      this.applyUi();
+    });
+    bindPress(document.getElementById("stick-out"), () => {
+      this.ui.stickCenterOffset = Math.max(0.12, this.ui.stickCenterOffset - 0.02);
+      this.applyUi();
+    });
+  }
+
+  applyUi() {
+    saveUiSettings(this.ui);
+    if (this.leftStick) this.leftStick.applySettings();
+    if (this.rightStick) this.rightStick.applySettings();
+  }
+
+  async loadWorldArchive() {
+    const response = await fetch(ARCHIVE_URL, { cache: "no-store" });
+    if (!response.ok) throw new Error(`Не удалось загрузить ${ARCHIVE_URL}: ${response.status}`);
+    const buffer = await response.arrayBuffer();
+    const zip = await JSZip.loadAsync(buffer);
+
+    const layers = {
+      z0_floor: await readPngFromZip(zip, "z0_floor.png"),
+      z1_floor: await readPngFromZip(zip, "z1_floor.png"),
+      z0_ramps: await readPngFromZip(zip, "z0_ramps.png"),
+      z1_ramps: await readPngFromZip(zip, "z1_ramps.png"),
+      z0_walls: await readPngFromZip(zip, "z0_walls.png"),
+      z1_walls: await readPngFromZip(zip, "z1_walls.png"),
+      z0_markers: await readPngFromZip(zip, "z0_markers.png"),
+    };
+
+    this.chunkData.set("0,0", this.buildChunkFromLayers(layers));
+  }
+
+  showLoadError(error) {
+    console.error(error);
+    if (this.loadingText) {
+      this.loadingText.setText("Ошибка загрузки архива:\n" + error.message + "\n\nПроверь, что central_chunk_pngs.zip лежит рядом с index.html в корне GitHub.");
+    }
+  }
+
+  startGame() {
+    if (this.loadingText) this.loadingText.destroy();
+    const spawn = this.findSpawnInCenterChunk();
+    this.playerGlobalX = spawn.x;
+    this.playerGlobalY = spawn.y;
+    this.playerZ = 0;
+    this.drawWorldAround(0, 0);
+    this.createPlayer();
+    this.leftStick = new VirtualStick(this, "left", this.ui);
+    this.rightStick = new VirtualStick(this, "right", this.ui);
+    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+    this.cameras.main.setZoom(1.12);
+    this.createInfoText();
+  }
+
+  findSpawnInCenterChunk() {
+    const chunk = this.getChunk(0, 0);
+    if (chunk.spawn) return { x: chunk.spawn.x + 0.5, y: chunk.spawn.y + 0.5 };
+    return { x: 15.5, y: 16.5 };
+  }
+
+  createInfoText() {
+    this.infoText = this.add.text(12, 12, "", {
+      fontFamily: "Arial",
+      fontSize: "14px",
+      color: "#ffffff",
+      backgroundColor: "#00000088",
+      padding: { x: 8, y: 6 },
+    }).setScrollFactor(0).setDepth(1000000);
+    this.updateInfoText();
+  }
+
+  updateInfoText() {
+    if (!this.infoText) return;
+    if (!this.ui.debug) {
+      this.infoText.setVisible(false);
+      return;
+    }
+    this.infoText.setVisible(true);
+    const loc = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
+    this.infoText.setText(
+      `v0.8 PNG ZIP loader\n` +
+      `archive: ${ARCHIVE_URL}\n` +
+      `chunk: ${loc.cx},${loc.cy} z:${this.playerZ}\n` +
+      `local: ${loc.x.toFixed(2)},${loc.y.toFixed(2)}\n` +
+      `global: ${this.playerGlobalX.toFixed(2)},${this.playerGlobalY.toFixed(2)}\n` +
+      `active ramp: ${this.activeRamp ? this.activeRamp.dir : "нет"}`
+    );
+  }
+
+  buildChunkFromLayers(layers) {
+    const chunk = {
+      levels: new Map(),
+      spawn: null,
+    };
+
+    const z0 = this.createBlankLevel(TileKind.Grass);
+    const z1 = this.createBlankLevel(TileKind.Void);
+    chunk.levels.set(0, z0);
+    chunk.levels.set(1, z1);
+
+    if (layers.z0_floor) this.readFloorLayer(z0, layers.z0_floor);
+    if (layers.z1_floor) this.readFloorLayer(z1, layers.z1_floor);
+    if (layers.z0_walls) this.readWallsLayer(z0, layers.z0_walls);
+    if (layers.z1_walls) this.readWallsLayer(z1, layers.z1_walls);
+    if (layers.z0_ramps) this.readRampsLayer(z0, layers.z0_ramps, 0, 1);
+    if (layers.z1_ramps) this.readRampsLayer(z1, layers.z1_ramps, 1, 2);
+    if (layers.z0_markers) this.readMarkers(chunk, layers.z0_markers);
+
+    return chunk;
+  }
+
+  createBlankLevel(defaultKind) {
+    const ground = [];
+    const hWalls = [];
+    const vWalls = [];
+    const ramps = [];
+    for (let y = 0; y < CHUNK_SIZE; y++) {
+      const row = [];
+      for (let x = 0; x < CHUNK_SIZE; x++) row.push(defaultKind);
+      ground.push(row);
+    }
+    for (let y = 0; y < CHUNK_SIZE + 1; y++) {
+      const row = [];
+      for (let x = 0; x < CHUNK_SIZE; x++) row.push(null);
+      hWalls.push(row);
+    }
+    for (let y = 0; y < CHUNK_SIZE; y++) {
+      const row = [];
+      for (let x = 0; x < CHUNK_SIZE + 1; x++) row.push(null);
+      vWalls.push(row);
+    }
+    return { ground, hWalls, vWalls, ramps };
+  }
+
+  readFloorLayer(level, layer) {
+    if (layer.width !== 32 || layer.height !== 32) {
+      console.warn("floor layer size should be 32x32", layer.width, layer.height);
+    }
+    for (let y = 0; y < Math.min(32, layer.height); y++) {
+      for (let x = 0; x < Math.min(32, layer.width); x++) {
+        const hex = layer.hexAt(x, y);
+        level.ground[y][x] = this.tileKindFromHex(hex);
+      }
+    }
+  }
+
+  tileKindFromHex(hex) {
+    if (hex === COLORS.void) return TileKind.Void;
+    if (hex === COLORS.grass) return TileKind.Grass;
+    if (hex === COLORS.road) return TileKind.Road;
+    if (hex === COLORS.concrete) return TileKind.Concrete;
+    if (hex === COLORS.dirt) return TileKind.Dirt;
+    if (hex === COLORS.floor) return TileKind.Floor;
+    return TileKind.Void;
+  }
+
+  readWallsLayer(level, layer) {
+    if (layer.width !== 65 || layer.height !== 65) {
+      console.warn("walls layer size should be 65x65", layer.width, layer.height);
+    }
+    for (let y = 0; y < layer.height; y++) {
+      for (let x = 0; x < layer.width; x++) {
+        const hex = layer.hexAt(x, y);
+        if (hex !== COLORS.wall && hex !== COLORS.window && hex !== COLORS.door) continue;
+
+        if (x % 2 === 0 && y % 2 === 1) {
+          const wx = x / 2;
+          const ty = (y - 1) / 2;
+          if (wx >= 0 && wx <= 32 && ty >= 0 && ty < 32) level.vWalls[ty][wx] = hex;
+        } else if (x % 2 === 1 && y % 2 === 0) {
+          const tx = (x - 1) / 2;
+          const wy = y / 2;
+          if (tx >= 0 && tx < 32 && wy >= 0 && wy <= 32) level.hWalls[wy][tx] = hex;
+        }
+      }
+    }
+  }
+
+  readRampsLayer(level, layer, fromZ, toZ) {
+    for (let y = 0; y < Math.min(32, layer.height); y++) {
+      for (let x = 0; x < Math.min(32, layer.width); x++) {
+        const hex = layer.hexAt(x, y);
+        const dir = this.rampDirFromHex(hex);
+        if (!dir) continue;
+        level.ramps.push({
+          x,
+          y,
+          dir,
+          length: 3,
+          width: 1,
+          fromZ,
+          toZ,
+          railings: true,
+        });
+      }
+    }
+  }
+
+  rampDirFromHex(hex) {
+    if (hex === COLORS.rampEast) return "east";
+    if (hex === COLORS.rampWest) return "west";
+    if (hex === COLORS.rampSouth) return "south";
+    if (hex === COLORS.rampNorth) return "north";
+    return null;
+  }
+
+  readMarkers(chunk, layer) {
+    for (let y = 0; y < Math.min(32, layer.height); y++) {
+      for (let x = 0; x < Math.min(32, layer.width); x++) {
+        const hex = layer.hexAt(x, y);
+        if (hex === COLORS.spawn) chunk.spawn = { x, y };
+      }
+    }
+  }
+
+  getChunk(cx, cy) {
+    const key = chunkKey(cx, cy);
+    if (this.chunkData.has(key)) return this.chunkData.get(key);
+
+    const chunk = { levels: new Map(), spawn: null };
+    chunk.levels.set(0, this.createBlankLevel(TileKind.Grass));
+    this.chunkData.set(key, chunk);
+    return chunk;
+  }
+
+  drawWorldAround(centerCx, centerCy) {
+    for (let cy = centerCy - 1; cy <= centerCy + 1; cy++) {
+      for (let cx = centerCx - 1; cx <= centerCx + 1; cx++) {
+        this.drawChunk(cx, cy);
+      }
+    }
+  }
+
+  redrawAll() {
+    for (const objects of this.loadedChunkObjects.values()) {
+      for (const obj of objects) obj.destroy();
+    }
+    this.loadedChunkObjects.clear();
+    const coords = this.getChunkCoordsFromGlobal(this.playerGlobalX, this.playerGlobalY);
+    this.drawWorldAround(coords.cx, coords.cy);
+    if (this.infoText) this.updateInfoText();
+  }
+
+  drawChunk(cx, cy) {
+    const key = chunkKey(cx, cy);
+    if (this.loadedChunkObjects.has(key)) {
+      for (const obj of this.loadedChunkObjects.get(key)) obj.destroy();
+    }
+    const objects = [];
+    this.loadedChunkObjects.set(key, objects);
+    const chunk = this.getChunk(cx, cy);
+
+    if (this.playerZ !== 0) {
+      const base = chunk.levels.get(0);
+      if (base) {
+        this.drawLevelGround(objects, base, cx, cy, 0, true);
+        this.drawLevelWalls(objects, base, cx, cy, 0, true);
+        this.drawRampsForLevel(objects, base, cx, cy);
+      }
+    }
+
+    const active = chunk.levels.get(this.playerZ);
+    if (active) {
+      this.drawLevelGround(objects, active, cx, cy, this.playerZ, false);
+      this.drawLevelWalls(objects, active, cx, cy, this.playerZ, false);
+      this.drawRampsForLevel(objects, active, cx, cy);
+    } else if (this.playerZ === 0) {
+      const fallback = chunk.levels.get(0);
+      this.drawLevelGround(objects, fallback, cx, cy, 0, false);
+    }
+  }
+
+  drawLevelGround(objects, level, cx, cy, z, faded) {
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        const kind = level.ground[y][x];
+        if (kind === TileKind.Void) continue;
+        const gx = cx * 32 + x;
+        const gy = cy * 32 + y;
+        const world = this.gridToWorld(gx + 0.5, gy + 0.5, z);
+        const g = this.add.graphics({ x: world.x, y: world.y });
+        g.fillStyle(this.colorForTile(kind), faded ? 0.32 : 1);
+        g.lineStyle(1, 0x1e1e1e, faded ? 0.12 : 0.25);
+        g.beginPath();
+        g.moveTo(0, -TILE_H / 2);
+        g.lineTo(TILE_W / 2, 0);
+        g.lineTo(0, TILE_H / 2);
+        g.lineTo(-TILE_W / 2, 0);
+        g.closePath();
+        g.fillPath();
+        g.strokePath();
+        g.setDepth(gx + gy + z * 10000 + (faded ? -120 : 0));
+        objects.push(g);
+      }
+    }
+  }
+
+  colorForTile(kind) {
+    if (kind === TileKind.Grass) return 0x4c994c;
+    if (kind === TileKind.Road) return 0x6e6e6e;
+    if (kind === TileKind.Concrete) return 0x5c5c5c;
+    if (kind === TileKind.Dirt) return 0x8c6e46;
+    if (kind === TileKind.Floor) return 0xb8a37a;
+    return 0x111111;
+  }
+
+  drawLevelWalls(objects, level, cx, cy, z, faded) {
+    for (let y = 0; y <= 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        const hex = level.hWalls[y][x];
+        if (!hex) continue;
+        if (hex === COLORS.door) {
+          this.drawDoorMark(objects, cx * 32 + x, cy * 32 + y, "h", z);
+        } else {
+          objects.push(this.drawWallSegment(cx * 32 + x, cy * 32 + y, cx * 32 + x + 1, cy * 32 + y, z, faded, hex));
+        }
+      }
+    }
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x <= 32; x++) {
+        const hex = level.vWalls[y][x];
+        if (!hex) continue;
+        if (hex === COLORS.door) {
+          this.drawDoorMark(objects, cx * 32 + x, cy * 32 + y, "v", z);
+        } else {
+          objects.push(this.drawWallSegment(cx * 32 + x, cy * 32 + y, cx * 32 + x, cy * 32 + y + 1, z, faded, hex));
+        }
+      }
+    }
+  }
+
+  drawDoorMark(objects, x, y, dir, z) {
+    const p = this.gridToWorld(x, y, z);
+    const g = this.add.graphics();
+    g.fillStyle(0xff8800, 0.75);
+    g.fillCircle(p.x, p.y - 5, 5);
+    g.setDepth(x + y + z * 10000 + 0.6);
+    objects.push(g);
+  }
+
+  drawWallSegment(x1, y1, x2, y2, z, faded, hex) {
+    const p1 = this.gridToWorld(x1, y1, z);
+    const p2 = this.gridToWorld(x2, y2, z);
+    const h = WALL_HEIGHT_PX;
+    const g = this.add.graphics();
+    const isWindow = hex === COLORS.window;
+    g.fillStyle(isWindow ? 0x7896a8 : 0x5d5247, faded ? 0.28 : 0.76);
+    g.lineStyle(2, 0x241f1a, faded ? 0.25 : 0.65);
+    g.beginPath();
+    g.moveTo(p1.x, p1.y);
+    g.lineTo(p2.x, p2.y);
+    g.lineTo(p2.x, p2.y - h);
+    g.lineTo(p1.x, p1.y - h);
+    g.closePath();
+    g.fillPath();
+    g.strokePath();
+    g.lineStyle(3, 0x87796b, faded ? 0.28 : 0.75);
+    g.lineBetween(p1.x, p1.y - h, p2.x, p2.y - h);
+    g.setDepth(x1 + y1 + z * 10000 + (faded ? -80 : 0.45));
+    return g;
+  }
+
+  drawRampsForLevel(objects, level, cx, cy) {
+    for (const ramp of level.ramps || []) {
+      const gx = cx * 32 + ramp.x;
+      const gy = cy * 32 + ramp.y;
+      const len = ramp.length || 3;
+      const w = ramp.width || 1;
+      const points = this.getRampWorldPoints(gx, gy, ramp);
+      const { a, b, c, d } = points;
+
+      const underside = this.add.graphics();
+      underside.fillStyle(0x8c7351, 0.82);
+      underside.lineStyle(2, 0x4b3b22, 0.8);
+      this.drawRampSideWalls(underside, gx, gy, ramp, points);
+      underside.setDepth(gx + gy + Math.max(ramp.fromZ, ramp.toZ) * 10000 + 0.55);
+      objects.push(underside);
+
+      const g = this.add.graphics();
+      g.fillStyle(0xb8904a, 0.98);
+      g.lineStyle(2, 0xfff1a6, 0.95);
+      g.beginPath();
+      g.moveTo(a.x, a.y);
+      g.lineTo(b.x, b.y);
+      g.lineTo(c.x, c.y);
+      g.lineTo(d.x, d.y);
+      g.closePath();
+      g.fillPath();
+      g.strokePath();
+
+      g.lineStyle(2, 0x3a2b16, 0.55);
+      for (let i = 1; i < len; i++) {
+        const t = i / len;
+        const left = { x: Phaser.Math.Linear(a.x, b.x, t), y: Phaser.Math.Linear(a.y, b.y, t) };
+        const right = { x: Phaser.Math.Linear(d.x, c.x, t), y: Phaser.Math.Linear(d.y, c.y, t) };
+        g.lineBetween(left.x, left.y, right.x, right.y);
+      }
+
+      this.drawRampRails(g, points, len);
+      g.setDepth(gx + gy + Math.max(ramp.fromZ, ramp.toZ) * 10000 + 0.65);
+      objects.push(g);
+    }
+  }
+
+  getRampWorldPoints(gx, gy, ramp) {
+    const len = ramp.length || 3;
+    const w = ramp.width || 1;
+    if (ramp.dir === "east") {
+      return {
+        a: this.gridToWorld(gx, gy, ramp.fromZ),
+        b: this.gridToWorld(gx + len, gy, ramp.toZ),
+        c: this.gridToWorld(gx + len, gy + w, ramp.toZ),
+        d: this.gridToWorld(gx, gy + w, ramp.fromZ),
       };
-
-      const DEFAULT_UI_SETTINGS = {
-        stickCenterOffset: 0.22,
-        stickBottomOffset: 0.24,
-        stickRadius: 56,
-        stickAlpha: 0.34,
-        debug: false,
+    }
+    if (ramp.dir === "west") {
+      return {
+        a: this.gridToWorld(gx + len, gy, ramp.fromZ),
+        b: this.gridToWorld(gx, gy, ramp.toZ),
+        c: this.gridToWorld(gx, gy + w, ramp.toZ),
+        d: this.gridToWorld(gx + len, gy + w, ramp.fromZ),
       };
-
-      const WORLD_DATA = {
-        "-1,-1": {
-          name: "Северо-западная окраина",
-          roads: [{ x: 14, y: 0, w: 4, h: 32 }],
-          dirt: [{ x: 4, y: 18, w: 8, h: 6 }],
-          buildings: [{ x: 19, y: 6, w: 7, h: 6, doorSide: "south", doorOffset: 3 }],
-        },
-        "0,-1": {
-          name: "Северная дорога",
-          roads: [
-            { x: 14, y: 0, w: 4, h: 32 },
-            { x: 0, y: 16, w: 32, h: 3 },
-          ],
-          buildings: [
-            { x: 5, y: 5, w: 8, h: 6, doorSide: "south", doorOffset: 4 },
-            { x: 21, y: 21, w: 7, h: 7, doorSide: "north", doorOffset: 3 },
-          ],
-        },
-        "1,-1": {
-          name: "Северо-восточная улица",
-          roads: [
-            { x: 0, y: 16, w: 32, h: 3 },
-            { x: 9, y: 0, w: 4, h: 21 },
-          ],
-          buildings: [{ x: 18, y: 7, w: 9, h: 7, doorSide: "south", doorOffset: 4 }],
-        },
-        "-1,0": {
-          name: "Западный двор",
-          roads: [{ x: 0, y: 14, w: 32, h: 4 }],
-          dirt: [{ x: 6, y: 5, w: 10, h: 7 }],
-          buildings: [
-            { x: 20, y: 19, w: 8, h: 7, doorSide: "north", doorOffset: 4 },
-            { x: 5, y: 20, w: 7, h: 6, doorSide: "north", doorOffset: 3 },
-          ],
-        },
-        "0,0": {
-          name: "Центр: стартовый тестовый дом",
-          roads: [
-            { x: 0, y: 14, w: 32, h: 4 },
-            { x: 14, y: 0, w: 4, h: 32 },
-          ],
-          buildings: [
-            { x: 4, y: 5, w: 8, h: 6, doorSide: "south", doorOffset: 3 },
-            { x: 10, y: 12, w: 11, h: 11, doorSide: "south", doorOffset: 5, tower: true },
-            { x: 5, y: 21, w: 8, h: 7, doorSide: "north", doorOffset: 4 },
-          ],
-        },
-        "1,0": {
-          name: "Восточная улица и магазин",
-          roads: [
-            { x: 0, y: 14, w: 32, h: 4 },
-            { x: 10, y: 0, w: 4, h: 32 },
-          ],
-          buildings: [
-            { x: 18, y: 5, w: 10, h: 8, doorSide: "south", doorOffset: 4, shop: true },
-            { x: 4, y: 21, w: 8, h: 7, doorSide: "north", doorOffset: 3 },
-          ],
-        },
-        "-1,1": {
-          name: "Юго-западный пустырь",
-          roads: [{ x: 14, y: 0, w: 4, h: 32 }],
-          dirt: [
-            { x: 3, y: 4, w: 11, h: 9 },
-            { x: 18, y: 19, w: 9, h: 7 },
-          ],
-          buildings: [{ x: 4, y: 22, w: 8, h: 6, doorSide: "north", doorOffset: 3 }],
-        },
-        "0,1": {
-          name: "Южная дорога",
-          roads: [
-            { x: 14, y: 0, w: 4, h: 32 },
-            { x: 0, y: 12, w: 32, h: 4 },
-          ],
-          buildings: [
-            { x: 21, y: 20, w: 8, h: 7, doorSide: "north", doorOffset: 4 },
-            { x: 4, y: 5, w: 7, h: 7, doorSide: "south", doorOffset: 3 },
-          ],
-        },
-        "1,1": {
-          name: "Юго-восточный склад",
-          roads: [
-            { x: 0, y: 12, w: 32, h: 4 },
-            { x: 10, y: 0, w: 4, h: 32 },
-          ],
-          dirt: [{ x: 18, y: 18, w: 10, h: 8 }],
-          buildings: [{ x: 18, y: 5, w: 10, h: 8, doorSide: "south", doorOffset: 5, shop: true }],
-        },
+    }
+    if (ramp.dir === "south") {
+      return {
+        a: this.gridToWorld(gx, gy, ramp.fromZ),
+        b: this.gridToWorld(gx + w, gy, ramp.fromZ),
+        c: this.gridToWorld(gx + w, gy + len, ramp.toZ),
+        d: this.gridToWorld(gx, gy + len, ramp.toZ),
       };
+    }
+    return {
+      a: this.gridToWorld(gx, gy + len, ramp.fromZ),
+      b: this.gridToWorld(gx + w, gy + len, ramp.fromZ),
+      c: this.gridToWorld(gx + w, gy, ramp.toZ),
+      d: this.gridToWorld(gx, gy, ramp.toZ),
+    };
+  }
 
-      function loadUiSettings() {
-        try {
-          const raw = localStorage.getItem(SETTINGS_KEY);
-          if (!raw) return { ...DEFAULT_UI_SETTINGS };
-          return { ...DEFAULT_UI_SETTINGS, ...JSON.parse(raw) };
-        } catch (error) {
-          return { ...DEFAULT_UI_SETTINGS };
+  drawRampSideWalls(g, gx, gy, ramp, points) {
+    const len = ramp.length || 3;
+    const make = (topA, topB, baseA, baseB) => {
+      g.beginPath();
+      g.moveTo(baseA.x, baseA.y);
+      g.lineTo(baseB.x, baseB.y);
+      g.lineTo(topB.x, topB.y);
+      g.lineTo(topA.x, topA.y);
+      g.closePath();
+      g.fillPath();
+      g.strokePath();
+      for (let i = 1; i < len; i++) {
+        const t = i / len;
+        const bt = { x: Phaser.Math.Linear(baseA.x, baseB.x, t), y: Phaser.Math.Linear(baseA.y, baseB.y, t) };
+        const tt = { x: Phaser.Math.Linear(topA.x, topB.x, t), y: Phaser.Math.Linear(topA.y, topB.y, t) };
+        g.lineBetween(bt.x, bt.y, tt.x, tt.y);
+      }
+    };
+    const { a, b, c, d } = points;
+    if (ramp.dir === "east" || ramp.dir === "west") {
+      const lowLeft = ramp.dir === "east" ? a : b;
+      const highLeft = ramp.dir === "east" ? b : a;
+      const lowRight = ramp.dir === "east" ? d : c;
+      const highRight = ramp.dir === "east" ? c : d;
+      const baseLeftHigh = this.gridToWorld(gx + (ramp.dir === "east" ? len : 0), gy, ramp.fromZ);
+      const baseRightHigh = this.gridToWorld(gx + (ramp.dir === "east" ? len : 0), gy + 1, ramp.fromZ);
+      make(lowLeft, highLeft, lowLeft, baseLeftHigh);
+      make(lowRight, highRight, lowRight, baseRightHigh);
+    } else {
+      const lowLeft = ramp.dir === "south" ? a : d;
+      const highLeft = ramp.dir === "south" ? d : a;
+      const lowRight = ramp.dir === "south" ? b : c;
+      const highRight = ramp.dir === "south" ? c : b;
+      const baseLeftHigh = this.gridToWorld(gx, gy + (ramp.dir === "south" ? len : 0), ramp.fromZ);
+      const baseRightHigh = this.gridToWorld(gx + 1, gy + (ramp.dir === "south" ? len : 0), ramp.fromZ);
+      make(lowLeft, highLeft, lowLeft, baseLeftHigh);
+      make(lowRight, highRight, lowRight, baseRightHigh);
+    }
+  }
+
+  drawRampRails(g, points, len) {
+    const { a, b, c, d } = points;
+    const railLift = 16;
+    const postLift = 10;
+    const line = (p, q) => g.lineBetween(p.x, p.y, q.x, q.y);
+    const leftLow = { x: a.x, y: a.y - railLift };
+    const leftHigh = { x: b.x, y: b.y - railLift };
+    const rightLow = { x: d.x, y: d.y - railLift };
+    const rightHigh = { x: c.x, y: c.y - railLift };
+    g.lineStyle(4, 0xe9ddb2, 0.98);
+    line(leftLow, leftHigh);
+    line(rightLow, rightHigh);
+    g.lineStyle(2, 0x4d4124, 0.95);
+    line({ x: a.x, y: a.y - postLift }, leftLow);
+    line({ x: b.x, y: b.y - postLift }, leftHigh);
+    line({ x: d.x, y: d.y - postLift }, rightLow);
+    line({ x: c.x, y: c.y - postLift }, rightHigh);
+    for (let i = 1; i < len; i++) {
+      const t = i / len;
+      const baseL = { x: Phaser.Math.Linear(a.x, b.x, t), y: Phaser.Math.Linear(a.y, b.y, t) };
+      const baseR = { x: Phaser.Math.Linear(d.x, c.x, t), y: Phaser.Math.Linear(d.y, c.y, t) };
+      line({ x: baseL.x, y: baseL.y - postLift }, { x: baseL.x, y: baseL.y - railLift });
+      line({ x: baseR.x, y: baseR.y - postLift }, { x: baseR.x, y: baseR.y - railLift });
+    }
+  }
+
+  createPlayer() {
+    this.player = this.add.container(0, 0);
+    const shadow = this.add.ellipse(0, 12, 31, 14, 0x000000, 0.35);
+    const body = this.add.ellipse(0, -15, 20, 42, 0x2c6bd6, 1);
+    body.setStrokeStyle(2, 0x102d63, 1);
+    const head = this.add.circle(0, -43, 9, 0xe2b887, 1);
+    head.setStrokeStyle(2, 0x5b3a28, 1);
+    this.playerArrow = this.add.triangle(0, -15, 0, -7, 28, 0, 0, 7, 0xffdd66, 1);
+    this.playerArrow.setStrokeStyle(2, 0x7a5a00, 1);
+    this.player.add([shadow, body, head, this.playerArrow]);
+    this.syncPlayerWorldPosition();
+  }
+
+  update(_, deltaMs) {
+    if (!this.player) return;
+    const dt = deltaMs / 1000;
+    this.updatePlayerFacing();
+    this.updatePlayerMovement(dt);
+    this.syncPlayerWorldPosition();
+    this.updateInfoText();
+  }
+
+  updatePlayerFacing() {
+    if (!this.rightStick) return;
+    if (this.rightStick.strength > 0.15) {
+      this.facingAngle = Math.atan2(this.rightStick.valueY, this.rightStick.valueX);
+    }
+    if (this.playerArrow) this.playerArrow.setRotation(this.facingAngle);
+  }
+
+  updatePlayerMovement(dt) {
+    if (!this.leftStick || this.leftStick.strength <= 0.08) return;
+    const dir = this.screenDirectionToGridDirection(this.leftStick.valueX, this.leftStick.valueY);
+    const speed = this.playerSpeed * this.leftStick.strength * dt;
+
+    if (this.activeRamp) {
+      this.moveAlongActiveRamp(dir, speed);
+      return;
+    }
+
+    const nextX = this.playerGlobalX + dir.x * speed;
+    const nextY = this.playerGlobalY + dir.y * speed;
+
+    const entering = this.getRampEntryCandidate(this.playerGlobalX, this.playerGlobalY, nextX, nextY);
+    if (entering) {
+      this.activeRamp = entering.ramp;
+      this.snapPlayerToRamp(entering.ramp, entering.enterFromHigh ? "high" : "low");
+      return;
+    }
+
+    if (this.canWalkAt(nextX, this.playerGlobalY)) this.playerGlobalX = nextX;
+    if (this.canWalkAt(this.playerGlobalX, nextY)) this.playerGlobalY = nextY;
+  }
+
+  screenDirectionToGridDirection(screenX, screenY) {
+    const a = screenX / (TILE_W / 2);
+    const b = screenY / (TILE_H / 2);
+    let gridX = (a + b) / 2;
+    let gridY = (b - a) / 2;
+    const len = Math.hypot(gridX, gridY);
+    if (len <= 0.001) return { x: 0, y: 0 };
+    return { x: gridX / len, y: gridY / len };
+  }
+
+  getRampEntryCandidate(currentX, currentY, nextX, nextY) {
+    const ramps = this.getAllRampsNear(currentX, currentY);
+    for (const ramp of ramps) {
+      const nextInside = this.isPointInsideRampLane(nextX, nextY, ramp);
+      const currentInside = this.isPointInsideRampLane(currentX, currentY, ramp);
+      if (!nextInside || currentInside) continue;
+
+      const entry = this.whichRampEndCrossed(currentX, currentY, nextX, nextY, ramp);
+      if (this.playerZ === ramp.fromZ && entry === "low") return { ramp, enterFromHigh: false };
+      if (this.playerZ === ramp.toZ && entry === "high") return { ramp, enterFromHigh: true };
+    }
+    return null;
+  }
+
+  getAllRampsNear(x, y) {
+    const loc = this.globalToLocal(x, y);
+    const ramps = [];
+    for (let cy = loc.cy - 1; cy <= loc.cy + 1; cy++) {
+      for (let cx = loc.cx - 1; cx <= loc.cx + 1; cx++) {
+        const chunk = this.getChunk(cx, cy);
+        for (const [z, level] of chunk.levels.entries()) {
+          if (z !== this.playerZ) continue;
+          for (const ramp of level.ramps || []) ramps.push({ ...ramp, chunkX: cx, chunkY: cy });
         }
       }
-
-      function saveUiSettings(settings) {
-        try {
-          localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-        } catch (error) {}
-      }
-
-      function bindPress(element, handler) {
-        let last = 0;
-        const wrapped = (event) => {
-          const now = Date.now();
-          if (now - last < 160) return;
-          last = now;
-          event.preventDefault();
-          event.stopPropagation();
-          handler(event);
-        };
-        element.addEventListener("pointerup", wrapped, { passive: false });
-        element.addEventListener("touchend", wrapped, { passive: false });
-        element.addEventListener("click", wrapped, { passive: false });
-      }
-
-      function setupTelegram() {
-        const tg = window.Telegram && window.Telegram.WebApp;
-        if (!tg) return;
-        try {
-          tg.ready();
-          tg.expand();
-          if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
-          if (tg.requestFullscreen) tg.requestFullscreen();
-        } catch (error) {}
-      }
-
-      function chunkKey(cx, cy) {
-        return `${cx},${cy}`;
-      }
-
-      function floorDiv(value, size) {
-        return Math.floor(value / size);
-      }
-
-      function positiveMod(value, size) {
-        return ((value % size) + size) % size;
-      }
-
-      class VirtualStick {
-        constructor(scene, side) {
-          this.scene = scene;
-          this.side = side;
-          this.centerX = 0;
-          this.centerY = 0;
-          this.valueX = 0;
-          this.valueY = 0;
-          this.strength = 0;
-          this.activePointerId = null;
-          this.graphics = scene.add.graphics();
-          this.graphics.setScrollFactor(0);
-          this.graphics.setDepth(100000);
-          this.layout();
-          scene.input.on("pointerdown", this.onPointerDown, this);
-          scene.input.on("pointermove", this.onPointerMove, this);
-          scene.input.on("pointerup", this.onPointerUp, this);
-          scene.input.on("pointerupoutside", this.onPointerUp, this);
-          scene.scale.on("resize", this.onResize, this);
-          this.draw();
-        }
-
-        get radius() {
-          return this.scene.uiSettings.stickRadius;
-        }
-
-        get knobRadius() {
-          return Math.max(16, this.radius * 0.39);
-        }
-
-        get alpha() {
-          return Phaser.Math.Clamp(this.scene.uiSettings.stickAlpha, 0.08, 0.7);
-        }
-
-        onResize() {
-          this.layout();
-          this.reset();
-        }
-
-        layout() {
-          const w = this.scene.scale.width;
-          const h = this.scene.scale.height;
-          const sideOffset = Phaser.Math.Clamp(this.scene.uiSettings.stickCenterOffset, 0.13, 0.34);
-          const bottomOffset = Phaser.Math.Clamp(this.scene.uiSettings.stickBottomOffset, 0.14, 0.36);
-          this.centerY = h - Math.max(72, h * bottomOffset);
-          this.centerX = this.side === "left" ? w * sideOffset : w * (1 - sideOffset);
-        }
-
-        refreshLayout() {
-          this.layout();
-          this.draw();
-        }
-
-        onPointerDown(pointer) {
-          if (this.activePointerId !== null) return;
-          if (!this.isPointerInZone(pointer)) return;
-          this.activePointerId = pointer.id;
-          this.updateFromPointer(pointer);
-        }
-
-        onPointerMove(pointer) {
-          if (pointer.id !== this.activePointerId) return;
-          this.updateFromPointer(pointer);
-        }
-
-        onPointerUp(pointer) {
-          if (pointer.id !== this.activePointerId) return;
-          this.reset();
-        }
-
-        isPointerInZone(pointer) {
-          const w = this.scene.scale.width;
-          const h = this.scene.scale.height;
-          const isBottom = pointer.y > h * 0.38;
-          if (this.side === "left") return isBottom && pointer.x < w * 0.5;
-          return isBottom && pointer.x >= w * 0.5;
-        }
-
-        updateFromPointer(pointer) {
-          const dx = pointer.x - this.centerX;
-          const dy = pointer.y - this.centerY;
-          const distance = Math.hypot(dx, dy);
-          const clampedDistance = Math.min(distance, this.radius);
-          if (distance <= 0.001) {
-            this.valueX = 0;
-            this.valueY = 0;
-            this.strength = 0;
-            this.draw();
-            return;
-          }
-          const nx = dx / distance;
-          const ny = dy / distance;
-          this.valueX = nx * (clampedDistance / this.radius);
-          this.valueY = ny * (clampedDistance / this.radius);
-          this.strength = clampedDistance / this.radius;
-          this.draw();
-        }
-
-        reset() {
-          this.activePointerId = null;
-          this.valueX = 0;
-          this.valueY = 0;
-          this.strength = 0;
-          this.draw();
-        }
-
-        draw() {
-          const g = this.graphics;
-          g.clear();
-          const knobX = this.centerX + this.valueX * this.radius;
-          const knobY = this.centerY + this.valueY * this.radius;
-          g.lineStyle(3, 0xffffff, this.alpha);
-          g.fillStyle(0xffffff, this.alpha * 0.28);
-          g.fillCircle(this.centerX, this.centerY, this.radius);
-          g.strokeCircle(this.centerX, this.centerY, this.radius);
-          g.fillStyle(0xffffff, this.alpha * 0.74);
-          g.fillCircle(knobX, knobY, this.knobRadius);
-          g.lineStyle(2, 0xffffff, this.alpha * 0.55);
-          g.lineBetween(this.centerX, this.centerY, knobX, knobY);
-        }
-      }
-
-      class IsoPrototypeScene extends Phaser.Scene {
-        constructor() {
-          super("IsoPrototypeScene");
-          this.uiSettings = loadUiSettings();
-          this.chunkCache = new Map();
-          this.loadedChunkObjects = new Map();
-          this.centerChunkX = 0;
-          this.centerChunkY = 0;
-          this.playerGlobalX = 15.5;
-          this.playerGlobalY = 17.5;
-          this.playerZ = 0;
-          this.playerSpeed = 4.2;
-          this.playerRadius = 0.22;
-          this.leftStick = null;
-          this.rightStick = null;
-          this.player = null;
-          this.playerArrow = null;
-          this.infoText = null;
-          this.facingAngle = 0;
-          this.nearAction = null;
-          this.actionButton = null;
-          this.settingsPanel = null;
-        }
-
-        create() {
-          setupTelegram();
-          this.input.addPointer(4);
-          this.createPlayer();
-          this.createSticks();
-          this.setupCamera();
-          this.createDebugText();
-          this.setupDomUi();
-          this.refreshLoadedChunks(true);
-          this.syncPlayerWorldPosition();
-          this.updateDebugText();
-        }
-
-        update(time, deltaMs) {
-          const dt = deltaMs / 1000;
-          this.updatePlayerFacing();
-          this.updatePlayerMovement(dt);
-          this.updateCenterChunkIfNeeded();
-          this.syncPlayerWorldPosition();
-          this.updateNearbyAction();
-          this.updateDebugText();
-        }
-
-        setupDomUi() {
-          this.actionButton = document.getElementById("action-btn");
-          this.settingsPanel = document.getElementById("settings-panel");
-          const settingsBtn = document.getElementById("settings-btn");
-
-          bindPress(settingsBtn, () => this.toggleSettingsPanel());
-          bindPress(document.getElementById("close-settings"), () => this.hideSettingsPanel());
-          bindPress(this.actionButton, () => this.performNearbyAction());
-
-          bindPress(document.getElementById("stick-up"), () => this.adjustUi({ stickBottomOffset: this.uiSettings.stickBottomOffset + 0.015 }));
-          bindPress(document.getElementById("stick-down"), () => this.adjustUi({ stickBottomOffset: this.uiSettings.stickBottomOffset - 0.015 }));
-          bindPress(document.getElementById("stick-in"), () => this.adjustUi({ stickCenterOffset: this.uiSettings.stickCenterOffset + 0.015 }));
-          bindPress(document.getElementById("stick-out"), () => this.adjustUi({ stickCenterOffset: this.uiSettings.stickCenterOffset - 0.015 }));
-          bindPress(document.getElementById("stick-bigger"), () => this.adjustUi({ stickRadius: this.uiSettings.stickRadius + 4 }));
-          bindPress(document.getElementById("stick-smaller"), () => this.adjustUi({ stickRadius: this.uiSettings.stickRadius - 4 }));
-          bindPress(document.getElementById("stick-more"), () => this.adjustUi({ stickAlpha: this.uiSettings.stickAlpha + 0.05 }));
-          bindPress(document.getElementById("stick-less"), () => this.adjustUi({ stickAlpha: this.uiSettings.stickAlpha - 0.05 }));
-          bindPress(document.getElementById("debug-toggle"), () => {
-            this.uiSettings.debug = !this.uiSettings.debug;
-            saveUiSettings(this.uiSettings);
-            this.updateDebugVisibility();
-          });
-          bindPress(document.getElementById("step-tile"), () => this.stepOneTileForward());
-        }
-
-        toggleSettingsPanel() {
-          if (!this.settingsPanel) return;
-          this.settingsPanel.style.display = this.settingsPanel.style.display === "block" ? "none" : "block";
-        }
-
-        hideSettingsPanel() {
-          if (this.settingsPanel) this.settingsPanel.style.display = "none";
-        }
-
-        adjustUi(patch) {
-          this.uiSettings = { ...this.uiSettings, ...patch };
-          this.uiSettings.stickCenterOffset = Phaser.Math.Clamp(this.uiSettings.stickCenterOffset, 0.14, 0.34);
-          this.uiSettings.stickBottomOffset = Phaser.Math.Clamp(this.uiSettings.stickBottomOffset, 0.14, 0.38);
-          this.uiSettings.stickRadius = Phaser.Math.Clamp(this.uiSettings.stickRadius, 42, 78);
-          this.uiSettings.stickAlpha = Phaser.Math.Clamp(this.uiSettings.stickAlpha, 0.12, 0.7);
-          saveUiSettings(this.uiSettings);
-          if (this.leftStick) this.leftStick.refreshLayout();
-          if (this.rightStick) this.rightStick.refreshLayout();
-        }
-
-        createDebugText() {
-          this.infoText = this.add
-            .text(12, 12, "", {
-              fontFamily: "Arial",
-              fontSize: "14px",
-              color: "#ffffff",
-              backgroundColor: "#00000099",
-              padding: { x: 8, y: 6 },
-            })
-            .setScrollFactor(0)
-            .setDepth(100001);
-          this.updateDebugVisibility();
-        }
-
-        updateDebugVisibility() {
-          if (this.infoText) this.infoText.setVisible(Boolean(this.uiSettings.debug));
-        }
-
-        updateDebugText() {
-          if (!this.infoText || !this.uiSettings.debug) return;
-          const playerChunk = this.getChunkCoordsFromGlobal(this.playerGlobalX, this.playerGlobalY);
-          const local = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
-          const chunk = this.getChunk(playerChunk.cx, playerChunk.cy);
-          const fps = Math.round(this.game.loop.actualFps || 0);
-          this.infoText.setText(
-            `v0.7.4 scale + floor visibility\n` +
-              `FPS: ${fps}\n` +
-              `Z: ${this.playerZ}  (${this.getZLabel(this.playerZ)})\n` +
-              `Chunk: ${playerChunk.cx}, ${playerChunk.cy}\n` +
-              `Local: ${local.x.toFixed(1)}, ${local.y.toFixed(1)}\n` +
-              `Global: ${this.playerGlobalX.toFixed(1)}, ${this.playerGlobalY.toFixed(1)}\n` +
-              `Место: ${chunk.name}`
-          );
-        }
-
-        getZLabel(z) {
-          if (z === -1) return "подвал";
-          if (z === 0) return "улица / 1 этаж";
-          if (z === 1) return "2 этаж";
-          return `уровень ${z}`;
-        }
-
-        createPlayer() {
-          this.player = this.add.container(0, 0);
-
-          const shadow = this.add.ellipse(0, 8, 30, 14, 0x000000, 0.35);
-
-          // Масштаб теста: 1 тайл ≈ 1 м, человек ≈ 1.8 м.
-          // PLAYER_HEIGHT_PX не обязан быть фотореалистичным, но теперь связан с высотой этажа.
-          const bodyH = PLAYER_HEIGHT_PX * 0.62;
-          const bodyW = 18;
-          const bodyY = -PLAYER_HEIGHT_PX * 0.38;
-          const headR = Math.max(7, PLAYER_HEIGHT_PX * 0.15);
-          const headY = -PLAYER_HEIGHT_PX * 0.78;
-
-          const body = this.add.ellipse(0, bodyY, bodyW, bodyH, 0x2c6bd6, 1);
-          body.setStrokeStyle(2, 0x102d63, 1);
-
-          const head = this.add.circle(0, headY, headR, 0xe2b887, 1);
-          head.setStrokeStyle(2, 0x5b3a28, 1);
-
-          this.playerArrow = this.add.triangle(
-            0,
-            -PLAYER_HEIGHT_PX * 0.32,
-            0,
-            -7,
-            28,
-            0,
-            0,
-            7,
-            0xffdd66,
-            1
-          );
-          this.playerArrow.setStrokeStyle(2, 0x7a5a00, 1);
-          this.player.add([shadow, body, head, this.playerArrow]);
-        }
-
-        createSticks() {
-          this.leftStick = new VirtualStick(this, "left");
-          this.rightStick = new VirtualStick(this, "right");
-        }
-
-        setupCamera() {
-          this.cameras.main.setBackgroundColor("#151515");
-          this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-          this.cameras.main.setZoom(1.2);
-          this.cameras.main.setBounds(-100000, -100000, 200000, 200000);
-        }
-
-        getChunkCoordsFromGlobal(globalX, globalY) {
-          return {
-            cx: floorDiv(Math.floor(globalX), CHUNK_SIZE),
-            cy: floorDiv(Math.floor(globalY), CHUNK_SIZE),
-          };
-        }
-
-        globalToLocal(globalX, globalY) {
-          const tileX = Math.floor(globalX);
-          const tileY = Math.floor(globalY);
-          const cx = floorDiv(tileX, CHUNK_SIZE);
-          const cy = floorDiv(tileY, CHUNK_SIZE);
-          return {
-            cx,
-            cy,
-            lx: positiveMod(tileX, CHUNK_SIZE),
-            ly: positiveMod(tileY, CHUNK_SIZE),
-            x: globalX - cx * CHUNK_SIZE,
-            y: globalY - cy * CHUNK_SIZE,
-          };
-        }
-
-        updateCenterChunkIfNeeded() {
-          const coords = this.getChunkCoordsFromGlobal(this.playerGlobalX, this.playerGlobalY);
-          if (coords.cx !== this.centerChunkX || coords.cy !== this.centerChunkY) {
-            this.centerChunkX = coords.cx;
-            this.centerChunkY = coords.cy;
-            this.refreshLoadedChunks(false);
-          }
-        }
-
-        refreshLoadedChunks(force) {
-          const required = new Set();
-          for (let cy = this.centerChunkY - 1; cy <= this.centerChunkY + 1; cy++) {
-            for (let cx = this.centerChunkX - 1; cx <= this.centerChunkX + 1; cx++) {
-              const key = chunkKey(cx, cy);
-              required.add(key);
-              if (force || !this.loadedChunkObjects.has(key)) {
-                this.drawChunk(cx, cy);
-              }
-            }
-          }
-
-          for (const [key, objects] of this.loadedChunkObjects.entries()) {
-            if (!required.has(key)) {
-              for (const obj of objects) obj.destroy();
-              this.loadedChunkObjects.delete(key);
-            }
-          }
-        }
-
-        getChunk(cx, cy) {
-          const key = chunkKey(cx, cy);
-          if (!this.chunkCache.has(key)) {
-            this.chunkCache.set(key, this.buildChunk(cx, cy));
-          }
-          return this.chunkCache.get(key);
-        }
-
-        buildChunk(cx, cy) {
-          const key = chunkKey(cx, cy);
-          const data = WORLD_DATA[key] || null;
-          const chunk = {
-            cx,
-            cy,
-            name: data ? data.name : "Пустая окраина",
-            levels: new Map(),
-          };
-          const groundLevel = this.createBlankLevel(TileKind.Grass);
-          chunk.levels.set(0, groundLevel);
-
-          if (data) {
-            for (const road of data.roads || []) this.paintRect(groundLevel, road.x, road.y, road.w, road.h, TileKind.Road);
-            for (const dirt of data.dirt || []) this.paintRect(groundLevel, dirt.x, dirt.y, dirt.w, dirt.h, TileKind.Dirt);
-            for (const building of data.buildings || []) {
-              if (building.tower) this.addTestTower(chunk, building);
-              else this.addBuildingToLevel(groundLevel, building, building.shop ? TileKind.Concrete : TileKind.Floor);
-            }
-          } else {
-            this.paintRect(groundLevel, 14, 0, 4, 32, TileKind.Road);
-          }
-
-          return chunk;
-        }
-
-        createBlankLevel(defaultKind) {
-          const ground = [];
-          const hWalls = [];
-          const vWalls = [];
-          const stairs = [];
-          const ramps = [];
-          for (let y = 0; y < CHUNK_SIZE; y++) {
-            const row = [];
-            for (let x = 0; x < CHUNK_SIZE; x++) row.push(defaultKind);
-            ground.push(row);
-          }
-          for (let y = 0; y < CHUNK_SIZE + 1; y++) {
-            const row = [];
-            for (let x = 0; x < CHUNK_SIZE; x++) row.push(false);
-            hWalls.push(row);
-          }
-          for (let y = 0; y < CHUNK_SIZE; y++) {
-            const row = [];
-            for (let x = 0; x < CHUNK_SIZE + 1; x++) row.push(false);
-            vWalls.push(row);
-          }
-          return { ground, hWalls, vWalls, stairs, ramps };
-        }
-
-        ensureLevel(chunk, z, defaultKind = TileKind.Void) {
-          if (!chunk.levels.has(z)) {
-            chunk.levels.set(z, this.createBlankLevel(defaultKind));
-          }
-          return chunk.levels.get(z);
-        }
-
-        paintRect(level, x, y, w, h, kind) {
-          for (let yy = y; yy < y + h; yy++) {
-            for (let xx = x; xx < x + w; xx++) {
-              if (this.isInsideLocal(xx, yy)) level.ground[yy][xx] = kind;
-            }
-          }
-        }
-
-        addBuildingToLevel(level, b, kind = TileKind.Floor) {
-          this.paintRect(level, b.x, b.y, b.w, b.h, kind);
-          this.addPerimeterWalls(level, b.x, b.y, b.w, b.h, b.doorSide, b.doorOffset);
-        }
-
-        addTestTower(chunk, b) {
-          const z0 = this.ensureLevel(chunk, 0, TileKind.Grass);
-          const z1 = this.ensureLevel(chunk, 1, TileKind.Void);
-          const basement = this.ensureLevel(chunk, -1, TileKind.Void);
-
-          this.addBuildingToLevel(z0, b, TileKind.Floor);
-          this.addBuildingToLevel(z1, { ...b, doorSide: null }, TileKind.Floor);
-          this.addBuildingToLevel(basement, { ...b, doorSide: null }, TileKind.Concrete);
-
-          // Центральная точка появления внутри дома.
-          const centerX = b.x + Math.floor(b.w / 2) + 0.5;
-          const centerY = b.y + Math.floor(b.h / 2) + 0.5;
-          this.playerGlobalX = centerX;
-          this.playerGlobalY = centerY;
-
-          // Подвал оставляем на кнопочной вертикальной лестнице в центре.
-          z0.stairs.push({ x: centerX, y: centerY, label: "Подвал ↓", targetZ: -1, targetX: centerX, targetY: centerY, dir: "down" });
-          basement.stairs.push({ x: centerX, y: centerY, label: "1 этаж ↑", targetZ: 0, targetX: centerX, targetY: centerY, dir: "up" });
-
-          // 4 симметричные рампы. Низ рядом с персонажем, верх у стены,
-          // при этом после подъёма остаётся 1 клетка до стены.
-          const ramps = [
-            { x: b.x + 6, y: b.y + 5, length: 3, width: 1, dir: "east",  fromZ: 0, toZ: 1, label: "→", railings: true },
-            { x: b.x + 2, y: b.y + 5, length: 3, width: 1, dir: "west",  fromZ: 0, toZ: 1, label: "←", railings: true },
-            { x: b.x + 5, y: b.y + 6, length: 3, width: 1, dir: "south", fromZ: 0, toZ: 1, label: "↓", railings: true },
-            { x: b.x + 5, y: b.y + 2, length: 3, width: 1, dir: "north", fromZ: 0, toZ: 1, label: "↑", railings: true },
-          ];
-
-          // Проёмы на втором этаже:
-          // над первой клеткой марша пол есть, над второй и третьей — нет.
-          for (const ramp of ramps) {
-            if (ramp.dir === "east") {
-              this.paintRect(z1, ramp.x + 1, ramp.y, 2, 1, TileKind.Void);
-            } else if (ramp.dir === "west") {
-              this.paintRect(z1, ramp.x, ramp.y, 2, 1, TileKind.Void);
-            } else if (ramp.dir === "south") {
-              this.paintRect(z1, ramp.x, ramp.y + 1, 1, 2, TileKind.Void);
-            } else if (ramp.dir === "north") {
-              this.paintRect(z1, ramp.x, ramp.y, 1, 2, TileKind.Void);
-            }
-            z0.ramps.push(ramp);
-            z1.ramps.push(ramp);
-          }
-        }
-
-        addPerimeterWalls(level, startX, startY, width, height, doorSide, doorOffset) {
-
-
-          for (let x = startX; x < startX + width; x++) {
-            const topIsDoor = doorSide === "north" && x === startX + doorOffset;
-            const bottomIsDoor = doorSide === "south" && x === startX + doorOffset;
-            if (!topIsDoor) this.setHWall(level, x, startY, true);
-            if (!bottomIsDoor) this.setHWall(level, x, startY + height, true);
-          }
-          for (let y = startY; y < startY + height; y++) {
-            const leftIsDoor = doorSide === "west" && y === startY + doorOffset;
-            const rightIsDoor = doorSide === "east" && y === startY + doorOffset;
-            if (!leftIsDoor) this.setVWall(level, startX, y, true);
-            if (!rightIsDoor) this.setVWall(level, startX + width, y, true);
-          }
-        }
-
-        setHWall(level, x, y, value) {
-          if (x < 0 || x >= CHUNK_SIZE || y < 0 || y > CHUNK_SIZE) return;
-          level.hWalls[y][x] = value;
-        }
-
-        setVWall(level, x, y, value) {
-          if (x < 0 || x > CHUNK_SIZE || y < 0 || y >= CHUNK_SIZE) return;
-          level.vWalls[y][x] = value;
-        }
-
-        drawChunk(cx, cy) {
-          const key = chunkKey(cx, cy);
-          if (this.loadedChunkObjects.has(key)) {
-            for (const obj of this.loadedChunkObjects.get(key)) obj.destroy();
-          }
-          const objects = [];
-          this.loadedChunkObjects.set(key, objects);
-          const chunk = this.getChunk(cx, cy);
-
-          // Когда игрок на верхнем этаже, нижний мир не исчезает:
-          // улица/трава/дороги и наружные стены первого этажа остаются видимыми снизу.
-          if (this.playerZ > 0) {
-            const baseLevel = chunk.levels.get(0);
-            if (baseLevel) this.drawLevel(objects, baseLevel, cx, cy, 0, "base");
-          }
-
-          const activeLevel = chunk.levels.get(this.playerZ);
-          if (!activeLevel) return;
-
-          this.drawLevel(objects, activeLevel, cx, cy, this.playerZ, "active");
-          this.drawRampsForLevel(objects, activeLevel, cx, cy);
-          this.drawStairsForLevel(objects, activeLevel, cx, cy);
-          this.drawChunkLabel(objects, chunk, cx, cy);
-        }
-
-        drawLevel(objects, level, cx, cy, z, mode) {
-          const isBase = mode === "base";
-
-          for (let ly = 0; ly < CHUNK_SIZE; ly++) {
-            for (let lx = 0; lx < CHUNK_SIZE; lx++) {
-              const kind = level.ground[ly][lx];
-              if (kind === TileKind.Void) continue;
-              const gx = cx * CHUNK_SIZE + lx + 0.5;
-              const gy = cy * CHUNK_SIZE + ly + 0.5;
-              const world = this.gridToWorld(gx, gy, z);
-              objects.push(this.drawGroundTile(world.x, world.y, kind, gx, gy, z, isBase));
-            }
-          }
-
-          this.drawAllWallsForLevel(objects, level, cx, cy, z, isBase);
-        }
-
-        redrawLoadedChunks() {
-          const existing = Array.from(this.loadedChunkObjects.keys()).map((key) => key.split(",").map(Number));
-          for (const [cx, cy] of existing) this.drawChunk(cx, cy);
-        }
-
-        drawGroundTile(worldX, worldY, kind, globalX, globalY, z = this.playerZ, isBase = false) {
-          const g = this.add.graphics({ x: worldX, y: worldY });
-          let color = 0x4f7f3a;
-          if (kind === TileKind.Road) color = 0x565656;
-          if (kind === TileKind.Floor) color = 0x8b785c;
-          if (kind === TileKind.Dirt) color = 0x6f5a35;
-          if (kind === TileKind.Concrete) color = 0x70757a;
-          g.fillStyle(color, isBase ? 0.82 : 1);
-          g.lineStyle(1, 0x1e1e1e, isBase ? 0.16 : 0.23);
-          g.beginPath();
-          g.moveTo(0, -TILE_H / 2);
-          g.lineTo(TILE_W / 2, 0);
-          g.lineTo(0, TILE_H / 2);
-          g.lineTo(-TILE_W / 2, 0);
-          g.closePath();
-          g.fillPath();
-          g.strokePath();
-          g.setDepth(globalX + globalY + z * 10000 + (isBase ? -120 : 0));
-          return g;
-        }
-
-        drawAllWallsForLevel(objects, level, cx, cy, z = this.playerZ, isBase = false) {
-          for (let y = 0; y < CHUNK_SIZE + 1; y++) {
-            for (let x = 0; x < CHUNK_SIZE; x++) {
-              if (level.hWalls[y][x]) {
-                const gx = cx * CHUNK_SIZE + x;
-                const gy = cy * CHUNK_SIZE + y;
-                objects.push(this.drawWallSegment(gx, gy, gx + 1, gy, z, isBase));
-              }
-            }
-          }
-          for (let y = 0; y < CHUNK_SIZE; y++) {
-            for (let x = 0; x < CHUNK_SIZE + 1; x++) {
-              if (level.vWalls[y][x]) {
-                const gx = cx * CHUNK_SIZE + x;
-                const gy = cy * CHUNK_SIZE + y;
-                objects.push(this.drawWallSegment(gx, gy, gx, gy + 1, z, isBase));
-              }
-            }
-          }
-        }
-
-        drawWallSegment(x1, y1, x2, y2, z = this.playerZ, isBase = false) {
-          const p1 = this.gridToWorld(x1, y1, z);
-          const p2 = this.gridToWorld(x2, y2, z);
-          const h = WALL_HEIGHT_PX;
-          const g = this.add.graphics();
-          g.fillStyle(z === -1 ? 0x43484f : 0x5d5247, isBase ? 0.78 : 1);
-          g.lineStyle(2, 0x241f1a, isBase ? 0.48 : 0.75);
-          g.beginPath();
-          g.moveTo(p1.x, p1.y);
-          g.lineTo(p2.x, p2.y);
-          g.lineTo(p2.x, p2.y - h);
-          g.lineTo(p1.x, p1.y - h);
-          g.closePath();
-          g.fillPath();
-          g.strokePath();
-          g.lineStyle(3, z === -1 ? 0x7a8188 : 0x87796b, isBase ? 0.55 : 0.95);
-          g.lineBetween(p1.x, p1.y - h, p2.x, p2.y - h);
-          g.setDepth(x1 + y1 + z * 10000 + (isBase ? -60 : 0.45));
-          return g;
-        }
-
-        drawRampsForLevel(objects, level, cx, cy) {
-          for (const ramp of level.ramps || []) {
-            const gx = cx * CHUNK_SIZE + ramp.x;
-            const gy = cy * CHUNK_SIZE + ramp.y;
-            const len = ramp.length || 3;
-            const w = ramp.width || 1;
-
-            let a, b, c, d;
-            if (ramp.dir === "east") {
-              a = this.gridToWorld(gx, gy, ramp.fromZ);
-              b = this.gridToWorld(gx + len, gy, ramp.toZ);
-              c = this.gridToWorld(gx + len, gy + w, ramp.toZ);
-              d = this.gridToWorld(gx, gy + w, ramp.fromZ);
-            } else if (ramp.dir === "west") {
-              a = this.gridToWorld(gx + len, gy, ramp.fromZ);
-              b = this.gridToWorld(gx, gy, ramp.toZ);
-              c = this.gridToWorld(gx, gy + w, ramp.toZ);
-              d = this.gridToWorld(gx + len, gy + w, ramp.fromZ);
-            } else {
-              a = this.gridToWorld(gx, gy, ramp.fromZ);
-              b = this.gridToWorld(gx + w, gy, ramp.fromZ);
-              c = this.gridToWorld(gx + w, gy + len, ramp.toZ);
-              d = this.gridToWorld(gx, gy + len, ramp.toZ);
-            }
-
-            const g = this.add.graphics();
-
-            if (ramp.railings) {
-              const underside = this.add.graphics();
-              underside.fillStyle(0x8c7351, 0.88);
-              underside.lineStyle(2, 0x4b3b22, 0.92);
-
-              const makeSideWall = (topStart, topEnd, bottomStart, bottomEnd) => {
-                underside.beginPath();
-                underside.moveTo(bottomStart.x, bottomStart.y);
-                underside.lineTo(bottomEnd.x, bottomEnd.y);
-                underside.lineTo(topEnd.x, topEnd.y);
-                underside.lineTo(topStart.x, topStart.y);
-                underside.closePath();
-                underside.fillPath();
-                underside.strokePath();
-                for (let i = 1; i < len; i++) {
-                  const t = i / len;
-                  const bt = { x: Phaser.Math.Linear(bottomStart.x, bottomEnd.x, t), y: Phaser.Math.Linear(bottomStart.y, bottomEnd.y, t) };
-                  const tt = { x: Phaser.Math.Linear(topStart.x, topEnd.x, t), y: Phaser.Math.Linear(topStart.y, topEnd.y, t) };
-                  underside.lineStyle(1.5, 0x5b482b, 0.8);
-                  underside.lineBetween(bt.x, bt.y, tt.x, tt.y);
-                }
-              };
-
-              if (ramp.dir === "east" || ramp.dir === "west") {
-                const topNorthA = this.gridToWorld(gx, gy, ramp.fromZ);
-                const topNorthB = this.gridToWorld(gx + len, gy, ramp.toZ);
-                const baseNorthA = this.gridToWorld(gx, gy, ramp.fromZ);
-                const baseNorthB = this.gridToWorld(gx + len, gy, ramp.fromZ);
-                const topSouthA = this.gridToWorld(gx, gy + w, ramp.fromZ);
-                const topSouthB = this.gridToWorld(gx + len, gy + w, ramp.toZ);
-                const baseSouthA = this.gridToWorld(gx, gy + w, ramp.fromZ);
-                const baseSouthB = this.gridToWorld(gx + len, gy + w, ramp.fromZ);
-                makeSideWall(topNorthA, topNorthB, baseNorthA, baseNorthB);
-                makeSideWall(topSouthA, topSouthB, baseSouthA, baseSouthB);
-              } else {
-                const topWestA = this.gridToWorld(gx, gy, ramp.fromZ);
-                const topWestB = this.gridToWorld(gx, gy + len, ramp.toZ);
-                const baseWestA = this.gridToWorld(gx, gy, ramp.fromZ);
-                const baseWestB = this.gridToWorld(gx, gy + len, ramp.fromZ);
-                const topEastA = this.gridToWorld(gx + w, gy, ramp.fromZ);
-                const topEastB = this.gridToWorld(gx + w, gy + len, ramp.toZ);
-                const baseEastA = this.gridToWorld(gx + w, gy, ramp.fromZ);
-                const baseEastB = this.gridToWorld(gx + w, gy + len, ramp.fromZ);
-                makeSideWall(topWestA, topWestB, baseWestA, baseWestB);
-                makeSideWall(topEastA, topEastB, baseEastA, baseEastB);
-              }
-
-              const rampSideDepth = gx + gy + Math.max(ramp.fromZ, ramp.toZ) * 10000 + 0.55;
-              underside.setDepth(rampSideDepth);
-              objects.push(underside);
-            }
-
-            g.fillStyle(ramp.test ? 0xffa12b : 0xb8904a, 0.98);
-            g.lineStyle(ramp.test ? 4 : 2, ramp.test ? 0xfff1a6 : 0x2a2114, 0.95);
-            g.beginPath();
-            g.moveTo(a.x, a.y);
-            g.lineTo(b.x, b.y);
-            g.lineTo(c.x, c.y);
-            g.lineTo(d.x, d.y);
-            g.closePath();
-            g.fillPath();
-            g.strokePath();
-
-            g.lineStyle(2, 0x3a2b16, 0.55);
-            const steps = Math.max(3, len);
-            for (let i = 1; i < steps; i++) {
-              const t = i / steps;
-              const left = {
-                x: Phaser.Math.Linear(a.x, b.x, t),
-                y: Phaser.Math.Linear(a.y, b.y, t),
-              };
-              const right = {
-                x: Phaser.Math.Linear(d.x, c.x, t),
-                y: Phaser.Math.Linear(d.y, c.y, t),
-              };
-              g.lineBetween(left.x, left.y, right.x, right.y);
-            }
-
-            if (ramp.railings) {
-              const railLift = 16;
-              const postLift = 10;
-              const leftLow = { x: a.x, y: a.y - railLift };
-              const leftHigh = { x: b.x, y: b.y - railLift };
-              const rightLow = { x: d.x, y: d.y - railLift };
-              const rightHigh = { x: c.x, y: c.y - railLift };
-              g.lineStyle(4, 0xe9ddb2, 0.98);
-              g.lineBetween(leftLow.x, leftLow.y, leftHigh.x, leftHigh.y);
-              g.lineBetween(rightLow.x, rightLow.y, rightHigh.x, rightHigh.y);
-              g.lineStyle(2, 0x4d4124, 0.95);
-              g.lineBetween(a.x, a.y - postLift, leftLow.x, leftLow.y);
-              g.lineBetween(b.x, b.y - postLift, leftHigh.x, leftHigh.y);
-              g.lineBetween(d.x, d.y - postLift, rightLow.x, rightLow.y);
-              g.lineBetween(c.x, c.y - postLift, rightHigh.x, rightHigh.y);
-              const railPosts = Math.max(2, len);
-              for (let i = 1; i < railPosts; i++) {
-                const t = i / railPosts;
-                const baseL = { x: Phaser.Math.Linear(a.x, b.x, t), y: Phaser.Math.Linear(a.y, b.y, t) };
-                const topL = { x: baseL.x, y: baseL.y - railLift };
-                const baseR = { x: Phaser.Math.Linear(d.x, c.x, t), y: Phaser.Math.Linear(d.y, c.y, t) };
-                const topR = { x: baseR.x, y: baseR.y - railLift };
-                g.lineStyle(2, 0x4d4124, 0.95);
-                g.lineBetween(baseL.x, baseL.y - postLift, topL.x, topL.y);
-                g.lineBetween(baseR.x, baseR.y - postLift, topR.x, topR.y);
-              }
-            }
-
-            const rampDepth = gx + gy + Math.max(ramp.fromZ, ramp.toZ) * 10000 + 0.65;
-            g.setDepth(rampDepth);
-            objects.push(g);
-
-            if (ramp.label) {
-              const mid = this.gridToWorld(gx + len * 0.5, gy + w * 0.5, (ramp.fromZ + ramp.toZ) * 0.5);
-              const label = this.add
-                .text(mid.x, mid.y - 38, ramp.label, {
-                  fontFamily: "Arial",
-                  fontSize: "18px",
-                  color: "#1b1200",
-                  backgroundColor: "#ffd36acc",
-                  padding: { x: 8, y: 4 },
-                })
-                .setOrigin(0.5)
-                .setDepth(rampDepth + 0.05);
-              objects.push(label);
-            }
-          }
-        }
-
-        drawStairsForLevel(objects, level, cx, cy) {
-          for (const stair of level.stairs) {
-            const gx = cx * CHUNK_SIZE + stair.x;
-            const gy = cy * CHUNK_SIZE + stair.y;
-            const world = this.gridToWorld(gx, gy, this.playerZ);
-            const g = this.add.graphics({ x: world.x, y: world.y - 5 });
-            const color = stair.dir === "up" ? 0xf4d35e : 0x8ecae6;
-            g.fillStyle(color, 0.92);
-            g.lineStyle(2, 0x1d1d1d, 0.8);
-            g.fillRoundedRect(-18, -12, 36, 24, 6);
-            g.strokeRoundedRect(-18, -12, 36, 24, 6);
-            g.lineStyle(2, 0x1d1d1d, 0.75);
-            g.lineBetween(-12, 4, 12, 4);
-            g.lineBetween(-9, -2, 9, -2);
-            g.lineBetween(-6, -8, 6, -8);
-            g.setDepth(gx + gy + this.playerZ * 10000 + 0.8);
-            objects.push(g);
-          }
-        }
-
-        drawChunkLabel(objects, chunk, cx, cy) {
-          if (!this.uiSettings.debug) return;
-          const world = this.gridToWorld(cx * CHUNK_SIZE + 1, cy * CHUNK_SIZE + 1, this.playerZ);
-          const t = this.add
-            .text(world.x, world.y - 50, `${chunkKey(cx, cy)} z:${this.playerZ}`, {
-              fontFamily: "Arial",
-              fontSize: "13px",
-              color: "#ffffff",
-              backgroundColor: "#00000088",
-              padding: { x: 5, y: 3 },
-            })
-            .setDepth(100000);
-          objects.push(t);
-        }
-
-        updatePlayerFacing() {
-          if (!this.rightStick) return;
-          if (this.rightStick.strength > 0.15) {
-            this.facingAngle = Math.atan2(this.rightStick.valueY, this.rightStick.valueX);
-          }
-          if (this.playerArrow) this.playerArrow.setRotation(this.facingAngle);
-        }
-
-        updatePlayerMovement(dt) {
-          if (!this.leftStick) return;
-          if (this.leftStick.strength <= 0.08) return;
-          const dir = this.screenDirectionToGridDirection(this.leftStick.valueX, this.leftStick.valueY);
-          const speed = this.playerSpeed * this.leftStick.strength * dt;
-          const nextX = this.playerGlobalX + dir.x * speed;
-          const nextY = this.playerGlobalY + dir.y * speed;
-          if (this.canMoveX(this.playerGlobalX, nextX, this.playerGlobalY)) this.playerGlobalX = nextX;
-          if (this.canMoveY(this.playerGlobalY, nextY, this.playerGlobalX)) this.playerGlobalY = nextY;
-          this.handleRampElevation();
-        }
-
-        screenDirectionToGridDirection(screenX, screenY) {
-          const a = screenX / (TILE_W / 2);
-          const b = screenY / (TILE_H / 2);
-          let gridX = (a + b) / 2;
-          let gridY = (b - a) / 2;
-          const len = Math.hypot(gridX, gridY);
-          if (len <= 0.001) return { x: 0, y: 0 };
-          return { x: gridX / len, y: gridY / len };
-        }
-
-        canMoveX(currentX, nextX, y) {
-          const r = this.playerRadius;
-          if (!this.canMoveAcrossRamps(currentX, y, nextX, y)) return false;
-          if (!this.isWalkableForPlayer(nextX, y)) return false;
-          const sampleYs = [y - r, y, y + r];
-          if (nextX > currentX) {
-            const oldEdge = currentX + r;
-            const newEdge = nextX + r;
-            for (let xWall = Math.floor(oldEdge) + 1; xWall <= Math.floor(newEdge); xWall++) {
-              for (const sampleY of sampleYs) if (this.hasVerticalWallGlobal(xWall, Math.floor(sampleY))) return false;
-            }
-          } else if (nextX < currentX) {
-            const oldEdge = currentX - r;
-            const newEdge = nextX - r;
-            for (let xWall = Math.floor(oldEdge); xWall >= Math.floor(newEdge) + 1; xWall--) {
-              for (const sampleY of sampleYs) if (this.hasVerticalWallGlobal(xWall, Math.floor(sampleY))) return false;
-            }
-          }
-          return true;
-        }
-
-        canMoveY(currentY, nextY, x) {
-          const r = this.playerRadius;
-          if (!this.canMoveAcrossRamps(x, currentY, x, nextY)) return false;
-          if (!this.isWalkableForPlayer(x, nextY)) return false;
-          const sampleXs = [x - r, x, x + r];
-          if (nextY > currentY) {
-            const oldEdge = currentY + r;
-            const newEdge = nextY + r;
-            for (let yWall = Math.floor(oldEdge) + 1; yWall <= Math.floor(newEdge); yWall++) {
-              for (const sampleX of sampleXs) if (this.hasHorizontalWallGlobal(yWall, Math.floor(sampleX))) return false;
-            }
-          } else if (nextY < currentY) {
-            const oldEdge = currentY - r;
-            const newEdge = nextY - r;
-            for (let yWall = Math.floor(oldEdge); yWall >= Math.floor(newEdge) + 1; yWall--) {
-              for (const sampleX of sampleXs) if (this.hasHorizontalWallGlobal(yWall, Math.floor(sampleX))) return false;
-            }
-          }
-          return true;
-        }
-
-        canMoveAcrossRamps(currentX, currentY, nextX, nextY) {
-          // Рампа ведёт себя как коридор с невидимыми перилами.
-          // Войти можно только с нижнего торца, выйти только с верхнего торца.
-          // Середина рампы не принимает боковой вход/выход, иначе персонаж «запрыгивает» на верхнюю ступеньку.
-          const ramps = this.getNearbyRampsForCurrentLevel(currentX, currentY, nextX, nextY);
-          for (const ramp of ramps) {
-            const state = this.getRampMovementState(ramp, currentX, currentY, nextX, nextY);
-            if (!state.touchesRamp) continue;
-
-            if (state.currentInside && state.nextInside) continue;
-
-            const currentZIsFrom = this.playerZ === ramp.fromZ;
-            const currentZIsTo = this.playerZ === ramp.toZ;
-
-            if (state.currentInside && !state.nextInside) {
-              if (currentZIsFrom && state.crossesFromEnd) continue;
-              if (currentZIsTo && state.crossesToEnd) continue;
-              return false;
-            }
-
-            if (!state.currentInside && state.nextInside) {
-              if (currentZIsFrom && state.crossesFromEnd) continue;
-              if (currentZIsTo && state.crossesToEnd) continue;
-              return false;
-            }
-          }
-          return true;
-        }
-
-        getNearbyRampsForCurrentLevel(currentX, currentY, nextX, nextY) {
-          const locA = this.globalToLocal(currentX, currentY);
-          const locB = this.globalToLocal(nextX, nextY);
-          const minCx = Math.min(locA.cx, locB.cx) - 1;
-          const maxCx = Math.max(locA.cx, locB.cx) + 1;
-          const minCy = Math.min(locA.cy, locB.cy) - 1;
-          const maxCy = Math.max(locA.cy, locB.cy) + 1;
-          const ramps = [];
-          const seen = new Set();
-
-          for (let cy = minCy; cy <= maxCy; cy++) {
-            for (let cx = minCx; cx <= maxCx; cx++) {
-              const chunk = this.getChunk(cx, cy);
-              const level = chunk.levels.get(this.playerZ);
-              if (!level) continue;
-              for (let i = 0; i < (level.ramps || []).length; i++) {
-                const ramp = level.ramps[i];
-                if (this.playerZ !== ramp.fromZ && this.playerZ !== ramp.toZ) continue;
-                const id = `${cx},${cy},${i},${ramp.x},${ramp.y},${ramp.fromZ},${ramp.toZ}`;
-                if (seen.has(id)) continue;
-                seen.add(id);
-                ramps.push({ ...ramp, chunkX: cx, chunkY: cy });
-              }
-            }
-          }
-
-          return ramps;
-        }
-
-        getRampMovementState(ramp, currentX, currentY, nextX, nextY) {
-          const bounds = this.getRampGlobalBounds(ramp);
-          const eps = 0.035;
-          const currentInside = this.isPointInsideRampBounds(currentX, currentY, bounds, eps);
-          const nextInside = this.isPointInsideRampBounds(nextX, nextY, bounds, eps);
-
-          if (!currentInside && !nextInside) {
-            return { touchesRamp: false, currentInside, nextInside, crossesFromEnd: false, crossesToEnd: false };
-          }
-
-          const crossesFromEnd = this.crossesRampEnd(currentX, currentY, nextX, nextY, bounds, "from");
-          const crossesToEnd = this.crossesRampEnd(currentX, currentY, nextX, nextY, bounds, "to");
-          return { touchesRamp: true, currentInside, nextInside, crossesFromEnd, crossesToEnd };
-        }
-
-        getRampGlobalBounds(ramp) {
-          const gx = ramp.chunkX * CHUNK_SIZE + ramp.x;
-          const gy = ramp.chunkY * CHUNK_SIZE + ramp.y;
-          const len = ramp.length || 3;
-          const width = ramp.width || 1;
-
-          const minX = gx;
-          const minY = gy;
-          const maxX = gx + ((ramp.dir === "east" || ramp.dir === "west") ? len : width);
-          const maxY = gy + ((ramp.dir === "north" || ramp.dir === "south") ? len : width);
-
-          let fromEnd;
-          let toEnd;
-
-          if (ramp.dir === "east") {
-            fromEnd = { axis: "x", value: minX, minOther: minY, maxOther: maxY };
-            toEnd = { axis: "x", value: maxX, minOther: minY, maxOther: maxY };
-          } else if (ramp.dir === "west") {
-            fromEnd = { axis: "x", value: maxX, minOther: minY, maxOther: maxY };
-            toEnd = { axis: "x", value: minX, minOther: minY, maxOther: maxY };
-          } else if (ramp.dir === "south") {
-            fromEnd = { axis: "y", value: minY, minOther: minX, maxOther: maxX };
-            toEnd = { axis: "y", value: maxY, minOther: minX, maxOther: maxX };
-          } else {
-            fromEnd = { axis: "y", value: maxY, minOther: minX, maxOther: maxX };
-            toEnd = { axis: "y", value: minY, minOther: minX, maxOther: maxX };
-          }
-
-          return { minX, maxX, minY, maxY, fromEnd, toEnd };
-        }
-
-        isPointInsideRampBounds(x, y, bounds, eps = 0) {
-          const sideMargin = 0.38;
-          if (bounds.fromEnd.axis === "x") {
-            return x >= bounds.minX - eps && x <= bounds.maxX + eps && y >= bounds.minY + sideMargin - eps && y <= bounds.maxY - sideMargin + eps;
-          }
-          return y >= bounds.minY - eps && y <= bounds.maxY + eps && x >= bounds.minX + sideMargin - eps && x <= bounds.maxX - sideMargin + eps;
-        }
-
-        crossesRampEnd(currentX, currentY, nextX, nextY, bounds, endName) {
-          const end = endName === "from" ? bounds.fromEnd : bounds.toEnd;
-          const eps = 0.035;
-          const sideMargin = 0.38;
-          const crossesLine = (a, b, value) => {
-            if (Math.abs(a - b) < 0.0001) return false;
-            return Math.min(a, b) <= value + eps && Math.max(a, b) >= value - eps;
-          };
-
-          if (end.axis === "x") {
-            const otherNow = currentY;
-            const otherNext = nextY;
-            const otherInside =
-              otherNow >= end.minOther + sideMargin - eps &&
-              otherNow <= end.maxOther - sideMargin + eps &&
-              otherNext >= end.minOther + sideMargin - eps &&
-              otherNext <= end.maxOther - sideMargin + eps;
-            const mostlyForward = Math.abs(nextX - currentX) >= Math.abs(nextY - currentY);
-            if (!otherInside || !mostlyForward) return false;
-            return crossesLine(currentX, nextX, end.value);
-          }
-
-          const otherNow = currentX;
-          const otherNext = nextX;
-          const otherInside =
-            otherNow >= end.minOther + sideMargin - eps &&
-            otherNow <= end.maxOther - sideMargin + eps &&
-            otherNext >= end.minOther + sideMargin - eps &&
-            otherNext <= end.maxOther - sideMargin + eps;
-          const mostlyForward = Math.abs(nextY - currentY) >= Math.abs(nextX - currentX);
-          if (!otherInside || !mostlyForward) return false;
-          return crossesLine(currentY, nextY, end.value);
-        }
-
-        isWalkableForPlayer(x, y) {
-          const r = this.playerRadius;
-          return (
-            this.isWalkableTileAt(x - r, y - r) &&
-            this.isWalkableTileAt(x + r, y - r) &&
-            this.isWalkableTileAt(x - r, y + r) &&
-            this.isWalkableTileAt(x + r, y + r)
-          );
-        }
-
-        isWalkableTileAt(globalX, globalY) {
-          const loc = this.globalToLocal(globalX, globalY);
-          const chunk = this.getChunk(loc.cx, loc.cy);
-          const level = chunk.levels.get(this.playerZ);
-          if (!level) return false;
-          if (!this.isInsideLocal(loc.lx, loc.ly)) return false;
-          if (level.ground[loc.ly][loc.lx] !== TileKind.Void) return true;
-          // На втором этаже под лестницей может быть отверстие в полу.
-          // Рампа сама является ходовой поверхностью, поэтому внутри её коридора ходить можно.
-          return this.isPointOnRampForCurrentZ(globalX, globalY);
-        }
-
-        isPointOnRampForCurrentZ(globalX, globalY) {
-          const ramps = this.getNearbyRampsForCurrentLevel(globalX, globalY, globalX, globalY);
-          for (const ramp of ramps) {
-            const bounds = this.getRampGlobalBounds(ramp);
-            if (this.isPointInsideRampBounds(globalX, globalY, bounds, 0.02)) return true;
-          }
-          return false;
-        }
-
-        hasVerticalWallGlobal(xWall, tileY) {
-          const ownerChunkX = floorDiv(xWall - 0.000001, CHUNK_SIZE);
-          const chunkY = floorDiv(tileY, CHUNK_SIZE);
-          const lx = xWall - ownerChunkX * CHUNK_SIZE;
-          const ly = positiveMod(tileY, CHUNK_SIZE);
-          const chunk = this.getChunk(ownerChunkX, chunkY);
-          const level = chunk.levels.get(this.playerZ);
-          if (!level) return false;
-          if (lx < 0 || lx > CHUNK_SIZE || ly < 0 || ly >= CHUNK_SIZE) return false;
-          return level.vWalls[ly][lx];
-        }
-
-        hasHorizontalWallGlobal(yWall, tileX) {
-          const ownerChunkY = floorDiv(yWall - 0.000001, CHUNK_SIZE);
-          const chunkX = floorDiv(tileX, CHUNK_SIZE);
-          const lx = positiveMod(tileX, CHUNK_SIZE);
-          const ly = yWall - ownerChunkY * CHUNK_SIZE;
-          const chunk = this.getChunk(chunkX, ownerChunkY);
-          const level = chunk.levels.get(this.playerZ);
-          if (!level) return false;
-          if (lx < 0 || lx >= CHUNK_SIZE || ly < 0 || ly > CHUNK_SIZE) return false;
-          return level.hWalls[ly][lx];
-        }
-
-        getCurrentRamp() {
-          const loc = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
-          const chunk = this.getChunk(loc.cx, loc.cy);
-          const level = chunk.levels.get(this.playerZ);
-          if (!level) return null;
-
-          for (const ramp of level.ramps || []) {
-            const lx = loc.x;
-            const ly = loc.y;
-            const len = ramp.length || 3;
-            const w = ramp.width || 1;
-            const insideEastWest =
-              (ramp.dir === "east" || ramp.dir === "west") &&
-              lx >= ramp.x - 0.04 &&
-              lx <= ramp.x + len + 0.04 &&
-              ly >= ramp.y + 0.22 &&
-              ly <= ramp.y + w - 0.22;
-            const insideNorthSouth =
-              (ramp.dir === "north" || ramp.dir === "south") &&
-              lx >= ramp.x + 0.22 &&
-              lx <= ramp.x + w - 0.22 &&
-              ly >= ramp.y - 0.04 &&
-              ly <= ramp.y + len + 0.04;
-
-            if (!insideEastWest && !insideNorthSouth) continue;
-            if (this.playerZ !== ramp.fromZ && this.playerZ !== ramp.toZ) continue;
-            return { ...ramp, chunkX: loc.cx, chunkY: loc.cy };
-          }
-          return null;
-        }
-
-        getRampProgress(ramp) {
-          const loc = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
-          const len = ramp.length || 3;
-          let progress = 0;
-          if (ramp.dir === "east") progress = (loc.x - ramp.x) / len;
-          else if (ramp.dir === "west") progress = 1 - (loc.x - ramp.x) / len;
-          else if (ramp.dir === "south") progress = (loc.y - ramp.y) / len;
-          else if (ramp.dir === "north") progress = 1 - (loc.y - ramp.y) / len;
-          return Phaser.Math.Clamp(progress, 0, 1);
-        }
-
-        getPlayerVisualZ() {
-          const ramp = this.getCurrentRamp();
-          if (!ramp) return this.playerZ;
-          const progress = this.getRampProgress(ramp);
-          return Phaser.Math.Linear(ramp.fromZ, ramp.toZ, progress);
-        }
-
-        handleRampElevation() {
-          const ramp = this.getCurrentRamp();
-          if (!ramp) return;
-          const progress = this.getRampProgress(ramp);
-          if (this.playerZ === ramp.fromZ && progress >= 0.94) {
-            this.playerZ = ramp.toZ;
-            this.placePlayerAtRampLanding(ramp, true);
-            this.redrawLoadedChunks();
-            this.syncPlayerWorldPosition();
-          } else if (this.playerZ === ramp.toZ && progress <= 0.06) {
-            this.playerZ = ramp.fromZ;
-            this.placePlayerAtRampLanding(ramp, false);
-            this.redrawLoadedChunks();
-            this.syncPlayerWorldPosition();
-          }
-        }
-
-        placePlayerAtRampLanding(ramp, goingUp) {
-          const gx = ramp.chunkX * CHUNK_SIZE + ramp.x;
-          const gy = ramp.chunkY * CHUNK_SIZE + ramp.y;
-          const len = ramp.length || 3;
-          const mid = (ramp.width || 1) * 0.5;
-          const push = 0.22;
-          if (ramp.dir === "east") {
-            this.playerGlobalY = gy + mid;
-            this.playerGlobalX = goingUp ? gx + len + push : gx - push;
-          } else if (ramp.dir === "west") {
-            this.playerGlobalY = gy + mid;
-            this.playerGlobalX = goingUp ? gx - push : gx + len + push;
-          } else if (ramp.dir === "south") {
-            this.playerGlobalX = gx + mid;
-            this.playerGlobalY = goingUp ? gy + len + push : gy - push;
-          } else if (ramp.dir === "north") {
-            this.playerGlobalX = gx + mid;
-            this.playerGlobalY = goingUp ? gy - push : gy + len + push;
-          }
-        }
-
-        updateNearbyAction() {
-          const action = this.findNearbyStair();
-          this.nearAction = action;
-          if (!this.actionButton) return;
-          if (action) {
-            this.actionButton.textContent = action.label;
-            this.actionButton.style.display = "block";
-          } else {
-            this.actionButton.style.display = "none";
-          }
-        }
-
-        findNearbyStair() {
-          const loc = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
-          const chunk = this.getChunk(loc.cx, loc.cy);
-          const level = chunk.levels.get(this.playerZ);
-          if (!level) return null;
-          let best = null;
-          let bestDist = Infinity;
-          for (const stair of level.stairs) {
-            const gx = loc.cx * CHUNK_SIZE + stair.x;
-            const gy = loc.cy * CHUNK_SIZE + stair.y;
-            const dist = Math.hypot(this.playerGlobalX - gx, this.playerGlobalY - gy);
-            if (dist < 1.25 && dist < bestDist) {
-              best = { ...stair, gx, gy, chunkX: loc.cx, chunkY: loc.cy };
-              bestDist = dist;
-            }
-          }
-          return best;
-        }
-
-        performNearbyAction() {
-          if (!this.nearAction) return;
-          this.playerZ = this.nearAction.targetZ;
-          this.playerGlobalX = this.nearAction.chunkX * CHUNK_SIZE + this.nearAction.targetX;
-          this.playerGlobalY = this.nearAction.chunkY * CHUNK_SIZE + this.nearAction.targetY;
-          this.redrawLoadedChunks();
-          this.syncPlayerWorldPosition();
-          this.updateNearbyAction();
-        }
-
-        stepOneTileForward() {
-          const dir = this.screenDirectionToGridDirection(Math.cos(this.facingAngle), Math.sin(this.facingAngle));
-          const targetX = this.playerGlobalX + Math.round(dir.x);
-          const targetY = this.playerGlobalY + Math.round(dir.y);
-          if (this.isWalkableForPlayer(targetX, targetY)) {
-            this.playerGlobalX = targetX;
-            this.playerGlobalY = targetY;
-            this.updateCenterChunkIfNeeded();
-            this.syncPlayerWorldPosition();
-          }
-        }
-
-        syncPlayerWorldPosition() {
-          if (!this.player) return;
-          const visualZ = this.getPlayerVisualZ();
-          const world = this.gridToWorld(this.playerGlobalX, this.playerGlobalY, visualZ);
-          this.player.setPosition(world.x, world.y - 3);
-          this.player.setDepth(this.playerGlobalX + this.playerGlobalY + visualZ * 10000 + 0.7);
-        }
-
-        gridToWorld(gridX, gridY, z) {
-          return {
-            x: MAP_OFFSET_X + (gridX - gridY) * (TILE_W / 2),
-            y: MAP_OFFSET_Y + (gridX + gridY) * (TILE_H / 2) - z * FLOOR_HEIGHT_PX,
-          };
-        }
-
-        isInsideLocal(x, y) {
-          return x >= 0 && y >= 0 && x < CHUNK_SIZE && y < CHUNK_SIZE;
-        }
-      }
-
-      const config = {
-        type: Phaser.AUTO,
-        parent: "game",
-        width: window.innerWidth,
-        height: window.innerHeight,
-        backgroundColor: "#111111",
-        scene: IsoPrototypeScene,
-        scale: {
-          mode: Phaser.Scale.RESIZE,
-          autoCenter: Phaser.Scale.CENTER_BOTH,
-        },
-      };
-
-      new Phaser.Game(config);
-    </script>
-  </body>
+    }
+    return ramps;
+  }
+
+  getRampBounds(ramp) {
+    const gx = ramp.chunkX * 32 + ramp.x;
+    const gy = ramp.chunkY * 32 + ramp.y;
+    const len = ramp.length || 3;
+    const w = ramp.width || 1;
+    return {
+      gx, gy, len, w,
+      minX: gx,
+      maxX: gx + ((ramp.dir === "east" || ramp.dir === "west") ? len : w),
+      minY: gy,
+      maxY: gy + ((ramp.dir === "north" || ramp.dir === "south") ? len : w),
+    };
+  }
+
+  isPointInsideRampLane(x, y, ramp) {
+    const b = this.getRampBounds(ramp);
+    const sideMargin = 0.28;
+    if (ramp.dir === "east" || ramp.dir === "west") {
+      return x >= b.minX - 0.03 && x <= b.maxX + 0.03 &&
+             y >= b.minY + sideMargin && y <= b.maxY - sideMargin;
+    }
+    return y >= b.minY - 0.03 && y <= b.maxY + 0.03 &&
+           x >= b.minX + sideMargin && x <= b.maxX - sideMargin;
+  }
+
+  whichRampEndCrossed(currentX, currentY, nextX, nextY, ramp) {
+    const b = this.getRampBounds(ramp);
+    const eps = 0.05;
+    const crosses = (a, c, value) => Math.min(a, c) <= value + eps && Math.max(a, c) >= value - eps;
+    if (ramp.dir === "east") {
+      if (crosses(currentX, nextX, b.minX) && nextX > currentX) return "low";
+      if (crosses(currentX, nextX, b.maxX) && nextX < currentX) return "high";
+    }
+    if (ramp.dir === "west") {
+      if (crosses(currentX, nextX, b.maxX) && nextX < currentX) return "low";
+      if (crosses(currentX, nextX, b.minX) && nextX > currentX) return "high";
+    }
+    if (ramp.dir === "south") {
+      if (crosses(currentY, nextY, b.minY) && nextY > currentY) return "low";
+      if (crosses(currentY, nextY, b.maxY) && nextY < currentY) return "high";
+    }
+    if (ramp.dir === "north") {
+      if (crosses(currentY, nextY, b.maxY) && nextY < currentY) return "low";
+      if (crosses(currentY, nextY, b.minY) && nextY > currentY) return "high";
+    }
+    return null;
+  }
+
+  snapPlayerToRamp(ramp, end) {
+    const b = this.getRampBounds(ramp);
+    const midX = (b.minX + b.maxX) / 2;
+    const midY = (b.minY + b.maxY) / 2;
+    const inset = 0.12;
+    if (ramp.dir === "east") {
+      this.playerGlobalY = midY;
+      this.playerGlobalX = end === "low" ? b.minX + inset : b.maxX - inset;
+    } else if (ramp.dir === "west") {
+      this.playerGlobalY = midY;
+      this.playerGlobalX = end === "low" ? b.maxX - inset : b.minX + inset;
+    } else if (ramp.dir === "south") {
+      this.playerGlobalX = midX;
+      this.playerGlobalY = end === "low" ? b.minY + inset : b.maxY - inset;
+    } else if (ramp.dir === "north") {
+      this.playerGlobalX = midX;
+      this.playerGlobalY = end === "low" ? b.maxY - inset : b.minY + inset;
+    }
+  }
+
+  moveAlongActiveRamp(dir, speed) {
+    const ramp = this.activeRamp;
+    const b = this.getRampBounds(ramp);
+    const forward = this.rampForwardVector(ramp);
+    const move = (dir.x * forward.x + dir.y * forward.y) * speed;
+    const midX = (b.minX + b.maxX) / 2;
+    const midY = (b.minY + b.maxY) / 2;
+
+    if (ramp.dir === "east" || ramp.dir === "west") {
+      this.playerGlobalY = midY;
+      this.playerGlobalX += forward.x * move;
+      this.playerGlobalX = Phaser.Math.Clamp(this.playerGlobalX, b.minX + 0.08, b.maxX - 0.08);
+    } else {
+      this.playerGlobalX = midX;
+      this.playerGlobalY += forward.y * move;
+      this.playerGlobalY = Phaser.Math.Clamp(this.playerGlobalY, b.minY + 0.08, b.maxY - 0.08);
+    }
+
+    const t = this.getRampProgress(ramp);
+    const inputForward = dir.x * forward.x + dir.y * forward.y;
+    if (this.playerZ === ramp.fromZ && t >= 0.97 && inputForward > 0) {
+      this.playerZ = ramp.toZ;
+      this.activeRamp = null;
+      this.placeAfterRamp(ramp, true);
+      this.redrawAll();
+    } else if (this.playerZ === ramp.toZ && t <= 0.03 && inputForward < 0) {
+      this.playerZ = ramp.fromZ;
+      this.activeRamp = null;
+      this.placeAfterRamp(ramp, false);
+      this.redrawAll();
+    }
+  }
+
+  rampForwardVector(ramp) {
+    if (ramp.dir === "east") return { x: 1, y: 0 };
+    if (ramp.dir === "west") return { x: -1, y: 0 };
+    if (ramp.dir === "south") return { x: 0, y: 1 };
+    return { x: 0, y: -1 };
+  }
+
+  getRampProgress(ramp) {
+    const b = this.getRampBounds(ramp);
+    if (ramp.dir === "east") return Phaser.Math.Clamp((this.playerGlobalX - b.minX) / b.len, 0, 1);
+    if (ramp.dir === "west") return Phaser.Math.Clamp((b.maxX - this.playerGlobalX) / b.len, 0, 1);
+    if (ramp.dir === "south") return Phaser.Math.Clamp((this.playerGlobalY - b.minY) / b.len, 0, 1);
+    return Phaser.Math.Clamp((b.maxY - this.playerGlobalY) / b.len, 0, 1);
+  }
+
+  placeAfterRamp(ramp, up) {
+    const b = this.getRampBounds(ramp);
+    const midX = (b.minX + b.maxX) / 2;
+    const midY = (b.minY + b.maxY) / 2;
+    const push = 0.25;
+    if (ramp.dir === "east") {
+      this.playerGlobalY = midY;
+      this.playerGlobalX = up ? b.maxX + push : b.minX - push;
+    } else if (ramp.dir === "west") {
+      this.playerGlobalY = midY;
+      this.playerGlobalX = up ? b.minX - push : b.maxX + push;
+    } else if (ramp.dir === "south") {
+      this.playerGlobalX = midX;
+      this.playerGlobalY = up ? b.maxY + push : b.minY - push;
+    } else if (ramp.dir === "north") {
+      this.playerGlobalX = midX;
+      this.playerGlobalY = up ? b.minY - push : b.maxY + push;
+    }
+  }
+
+  canWalkAt(x, y) {
+    const r = this.playerRadius;
+    return this.isWalkableAt(x - r, y - r) &&
+           this.isWalkableAt(x + r, y - r) &&
+           this.isWalkableAt(x - r, y + r) &&
+           this.isWalkableAt(x + r, y + r);
+  }
+
+  isWalkableAt(x, y) {
+    const loc = this.globalToLocal(x, y);
+    const chunk = this.getChunk(loc.cx, loc.cy);
+    const level = chunk.levels.get(this.playerZ);
+    if (!level) return false;
+    if (loc.x < 0 || loc.x >= 32 || loc.y < 0 || loc.y >= 32) return false;
+    const kind = level.ground[loc.y][loc.x];
+    return kind !== TileKind.Void;
+  }
+
+  getPlayerVisualZ() {
+    if (!this.activeRamp) return this.playerZ;
+    const t = this.getRampProgress(this.activeRamp);
+    return Phaser.Math.Linear(this.activeRamp.fromZ, this.activeRamp.toZ, t);
+  }
+
+  syncPlayerWorldPosition() {
+    if (!this.player) return;
+    const visualZ = this.getPlayerVisualZ();
+    const world = this.gridToWorld(this.playerGlobalX, this.playerGlobalY, visualZ);
+    this.player.setPosition(world.x, world.y - 3);
+    this.player.setDepth(this.playerGlobalX + this.playerGlobalY + visualZ * 10000 + 0.7);
+  }
+
+  gridToWorld(gridX, gridY, z) {
+    return {
+      x: MAP_OFFSET_X + (gridX - gridY) * (TILE_W / 2),
+      y: MAP_OFFSET_Y + (gridX + gridY) * (TILE_H / 2) - z * FLOOR_HEIGHT_PX,
+    };
+  }
+
+  getChunkCoordsFromGlobal(x, y) {
+    return { cx: floorDiv(x, 32), cy: floorDiv(y, 32) };
+  }
+  globalToLocal(x, y) {
+    const cx = floorDiv(x, 32);
+    const cy = floorDiv(y, 32);
+    return {
+      cx,
+      cy,
+      x: Math.floor(positiveMod(x, 32)),
+      y: Math.floor(positiveMod(y, 32)),
+      localX: positiveMod(x, 32),
+      localY: positiveMod(y, 32),
+    };
+  }
+}
+
+setupTelegram();
+
+const config = {
+  type: Phaser.AUTO,
+  parent: "game",
+  width: window.innerWidth,
+  height: window.innerHeight,
+  backgroundColor: "#111111",
+  scene: IsoPngLoaderScene,
+  scale: {
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
+};
+
+new Phaser.Game(config);
+</script>
+</body>
 </html>
