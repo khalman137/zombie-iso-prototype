@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
-    <title>Zombie Iso Prototype v0.4.3 Telegram UI</title>
+    <title>Zombie Iso Prototype v0.4.4 Telegram UI</title>
 
     <style>
       html,
@@ -56,7 +56,7 @@
         Dirt: 3,
       };
 
-      const UI_STORAGE_KEY = "zombie_iso_ui_v043";
+      const UI_STORAGE_KEY = "zombie_iso_ui_v044";
 
       const DEFAULT_UI_SETTINGS = {
         // stickXFactor: больше значение = стики ближе к центру.
@@ -370,21 +370,29 @@
         }
 
         getSettingsButtonX() {
-          // Не ставим кнопку сверху: её перекрывают нативные кнопки Telegram.
-          // Кнопка живёт над стиками, по центру экрана.
-          return this.scale.width / 2 - 45;
+          // Кнопка живёт боковым язычком слева, не сверху и не по центру игрока.
+          return 14;
         }
 
         getSettingsButtonY() {
           const h = this.scale.height;
+          const top = this.getTopSafeY();
 
-          // В Telegram видимая нижняя область может отличаться от canvas height.
-          // Поэтому привязываемся к стикам, а не к самому низу экрана.
-          if (this.leftStick) {
-            return Math.max(this.getTopSafeY() + 70, this.leftStick.centerY - this.leftStick.radius - 62);
-          }
+          // Середина левого края: не конфликтует с Telegram-кнопками сверху и стиками снизу.
+          return clamp(h * 0.48, top + 92, h - 178);
+        }
 
-          return h * 0.68;
+        getPanelMetrics() {
+          const w = this.scale.width;
+          const h = this.scale.height;
+          const top = this.getTopSafeY();
+
+          const panelW = Math.min(560, Math.max(320, w - 48));
+          const panelH = Math.min(340, Math.max(300, h - top - 28));
+          const x = Math.max(16, (w - panelW) / 2);
+          const y = clamp((h - panelH) / 2, top + 16, Math.max(top + 16, h - panelH - 16));
+
+          return { x, y, w: panelW, h: panelH };
         }
 
         createUi() {
@@ -411,7 +419,7 @@
             .setDepth(100001);
 
           // Единственная постоянная кнопка интерфейса. Всё остальное внутри меню.
-          this.uiButton = this.makeUiButton("⚙ UI", this.getSettingsButtonX(), this.getSettingsButtonY(), () => {
+          this.uiButton = this.makeUiButton("⚙", this.getSettingsButtonX(), this.getSettingsButtonY(), () => {
             this.toggleUiPanel();
           }, "#244c88ee");
 
@@ -426,13 +434,14 @@
         }
 
         makeUiButton(label, x, y, callback, color) {
+          const isMainUiButton = label.startsWith("⚙");
           const button = this.add
             .text(x, y, label, {
               fontFamily: "Arial",
-              fontSize: label.startsWith("⚙") ? "20px" : "14px",
+              fontSize: isMainUiButton ? "18px" : "14px",
               color: "#ffffff",
               backgroundColor: color,
-              padding: { x: label.startsWith("⚙") ? 15 : 10, y: label.startsWith("⚙") ? 10 : 8 },
+              padding: { x: isMainUiButton ? 10 : 10, y: isMainUiButton ? 9 : 8 },
             })
             .setScrollFactor(0)
             .setDepth(100002)
@@ -447,37 +456,40 @@
         }
 
         createUiPanel() {
-          this.uiPanel = this.add.container(24, this.getTopSafeY() + 52);
+          const metrics = this.getPanelMetrics();
+          this.uiPanel = this.add.container(metrics.x, metrics.y);
           this.uiPanel.setScrollFactor(0);
           this.uiPanel.setDepth(100003);
 
-          const bg = this.add.rectangle(0, 0, 342, 326, 0x000000, 0.82)
+          this.uiPanelBg = this.add.rectangle(0, 0, metrics.w, metrics.h, 0x000000, 0.84)
             .setOrigin(0, 0)
-            .setStrokeStyle(2, 0xffffff, 0.25);
-          this.uiPanel.add(bg);
+            .setStrokeStyle(2, 0xffffff, 0.28)
+            .setInteractive({ useHandCursor: false });
+          this.uiPanelBg.on("pointerdown", (pointer) => pointer.event.stopPropagation());
+          this.uiPanel.add(this.uiPanelBg);
 
-          const title = this.add.text(12, 10, "Настройки", {
+          this.uiPanelTitle = this.add.text(16, 12, "Настройки", {
             fontFamily: "Arial",
-            fontSize: "16px",
+            fontSize: "18px",
             color: "#ffffff",
           });
-          this.uiPanel.add(title);
+          this.uiPanel.add(this.uiPanelTitle);
 
-          const hint = this.add.text(12, 30, "Здесь всё служебное, на экране остаётся только ⚙", {
+          this.uiPanelHint = this.add.text(16, 38, "⚙ вынесена на левый край. Меню теперь по центру и не режется.", {
             fontFamily: "Arial",
-            fontSize: "11px",
+            fontSize: "12px",
             color: "#cccccc",
           });
-          this.uiPanel.add(hint);
+          this.uiPanel.add(this.uiPanelHint);
 
           const addPanelButton = (label, x, y, callback, w) => {
             const b = this.add
               .text(x, y, label, {
                 fontFamily: "Arial",
-                fontSize: "14px",
+                fontSize: "15px",
                 color: "#ffffff",
                 backgroundColor: "#333333dd",
-                padding: { x: 9, y: 7 },
+                padding: { x: 10, y: 8 },
                 fixedWidth: w || 0,
               })
               .setInteractive({ useHandCursor: true });
@@ -491,33 +503,43 @@
             return b;
           };
 
-          this.panelDebugButton = addPanelButton("Debug: выкл", 12, 56, () => this.toggleDebugVisible(), 130);
-          addPanelButton("сдвиг 1 тайл", 158, 56, () => {
+          const col1 = 16;
+          const col2 = 168;
+          const col3 = 320;
+          const bw = 134;
+
+          this.panelDebugButton = addPanelButton("Debug: выкл", col1, 72, () => this.toggleDebugVisible(), bw);
+          addPanelButton("сдвиг 1 тайл", col2, 72, () => {
             this.nudgePlayerToNeighborTile();
             this.toggleUiPanel(false);
-          }, 150);
+          }, bw);
+          addPanelButton("закрыть", col3, 72, () => this.toggleUiPanel(false), bw);
 
-          addPanelButton("стики ↑", 12, 98, () => this.changeStickSetting("stickYFactor", 0.025, 0.16, 0.46), 96);
-          addPanelButton("стики ↓", 122, 98, () => this.changeStickSetting("stickYFactor", -0.025, 0.16, 0.46), 96);
+          addPanelButton("стики ↑", col1, 122, () => this.changeStickSetting("stickYFactor", 0.025, 0.16, 0.46), bw);
+          addPanelButton("стики ↓", col2, 122, () => this.changeStickSetting("stickYFactor", -0.025, 0.16, 0.46), bw);
+          addPanelButton("сброс UI", col3, 122, () => this.resetUiSettings(), bw);
 
-          addPanelButton("к центру +", 12, 140, () => this.changeStickSetting("stickXFactor", 0.025, 0.13, 0.38), 110);
-          addPanelButton("к краям -", 136, 140, () => this.changeStickSetting("stickXFactor", -0.025, 0.13, 0.38), 110);
+          addPanelButton("к центру +", col1, 172, () => this.changeStickSetting("stickXFactor", 0.025, 0.13, 0.38), bw);
+          addPanelButton("к краям -", col2, 172, () => this.changeStickSetting("stickXFactor", -0.025, 0.13, 0.38), bw);
 
-          addPanelButton("размер +", 12, 182, () => this.changeStickSetting("stickRadius", 4, 40, 90), 96);
-          addPanelButton("размер -", 122, 182, () => this.changeStickSetting("stickRadius", -4, 40, 90), 96);
+          addPanelButton("размер +", col1, 222, () => this.changeStickSetting("stickRadius", 4, 40, 90), bw);
+          addPanelButton("размер -", col2, 222, () => this.changeStickSetting("stickRadius", -4, 40, 90), bw);
 
-          addPanelButton("ярче", 12, 224, () => this.changeStickSetting("stickOpacity", 0.1, 0.25, 1), 82);
-          addPanelButton("бледнее", 108, 224, () => this.changeStickSetting("stickOpacity", -0.1, 0.25, 1), 96);
-
-          addPanelButton("сброс UI", 12, 274, () => this.resetUiSettings(), 100);
-          addPanelButton("закрыть", 126, 274, () => this.toggleUiPanel(false), 100);
+          addPanelButton("ярче", col1, 272, () => this.changeStickSetting("stickOpacity", 0.1, 0.25, 1), bw);
+          addPanelButton("бледнее", col2, 272, () => this.changeStickSetting("stickOpacity", -0.1, 0.25, 1), bw);
         }
 
         layoutUi() {
           const top = this.getTopSafeY();
 
           if (this.uiButton) this.uiButton.setPosition(this.getSettingsButtonX(), this.getSettingsButtonY());
-          if (this.uiPanel) this.uiPanel.setPosition(24, top + 52);
+
+          if (this.uiPanel) {
+            const metrics = this.getPanelMetrics();
+            this.uiPanel.setPosition(metrics.x, metrics.y);
+            if (this.uiPanelBg) this.uiPanelBg.setSize(metrics.w, metrics.h);
+          }
+
           if (this.infoText) this.infoText.setPosition(12, top + 50);
           if (this.fpsText) this.fpsText.setPosition(12, this.infoText && this.infoText.visible ? this.infoText.y + this.infoText.height + 8 : top + 50);
         }
