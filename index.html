@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Zombie Iso PNG Zip Loader v0.8.8</title>
+  <title>Zombie Iso PNG Zip Loader v0.8.9</title>
   <style>
     :root {
       --safe-top: env(safe-area-inset-top, 0px);
@@ -148,7 +148,7 @@
         <button class="panel-btn" id="close-settings">Закрыть</button>
       </div>
       <div class="panel-note">
-        <span class="pill">v0.8.8 png zip loader</span>
+        <span class="pill">v0.8.9 png zip loader</span>
         Карта читается из архива <b>central_chunk_pngs.zip</b>. Центральный чанк берётся из PNG-слоёв, соседние чанки пока простая трава.
       </div>
     </div>
@@ -162,7 +162,7 @@ const MAP_OFFSET_X = 900;
 const MAP_OFFSET_Y = 70;
 const FLOOR_HEIGHT_PX = 84;
 const WALL_HEIGHT_PX = 84;
-const ARCHIVE_URL = "central_chunk_pngs.zip?v=9";
+const ARCHIVE_URL = "central_chunk_pngs.zip?v=10";
 const SETTINGS_KEY = "zombie_iso_png_loader_v081";
 const DEPTH_Z = 100000;
 const DEPTH_TILE = 100;
@@ -563,7 +563,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
     this.infoText.setVisible(true);
     const loc = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
     this.infoText.setText(
-      `v0.8.8 PNG ZIP loader\n` +
+      `v0.8.9 PNG ZIP loader\n` +
       `archive: ${ARCHIVE_URL}\n` +
       `chunk: ${loc.cx},${loc.cy} z:${this.playerZ} view:${this.renderZ}\n` +
       `local: ${loc.x.toFixed(2)},${loc.y.toFixed(2)}\n` +
@@ -731,6 +731,16 @@ class IsoPngLoaderScene extends Phaser.Scene {
     if (this.infoText) this.updateInfoText();
   }
 
+  shouldUpperFloorOccludePlayer(z) {
+    if (!this.activeRamp) return false;
+    const visualZ = this.getPlayerVisualZ();
+    const viewZ = this.renderZ ?? this.playerZ;
+
+    // Только когда персонаж на рампе уже частично ниже плоскости верхнего этажа,
+    // пол этого верхнего этажа должен работать как "крышка" и перекрывать часть персонажа.
+    return z === this.activeRamp.toZ && viewZ === this.activeRamp.toZ && visualZ < this.activeRamp.toZ - 0.02;
+  }
+
   drawChunk(cx, cy) {
     const key = chunkKey(cx, cy);
     if (this.loadedChunkObjects.has(key)) {
@@ -744,7 +754,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
     if (viewZ !== 0) {
       const base = chunk.levels.get(0);
       if (base) {
-        this.drawLevelGround(objects, base, cx, cy, 0, true);
+        this.drawLevelGround(objects, base, cx, cy, 0, true, false);
         this.drawLevelWalls(objects, base, cx, cy, 0, true);
         this.drawRampsForLevel(objects, base, cx, cy);
       }
@@ -752,16 +762,16 @@ class IsoPngLoaderScene extends Phaser.Scene {
 
     const active = chunk.levels.get(viewZ);
     if (active) {
-      this.drawLevelGround(objects, active, cx, cy, viewZ, false);
+      this.drawLevelGround(objects, active, cx, cy, viewZ, false, this.shouldUpperFloorOccludePlayer(viewZ));
       this.drawLevelWalls(objects, active, cx, cy, viewZ, false);
       this.drawRampsForLevel(objects, active, cx, cy);
     } else if (viewZ === 0) {
       const fallback = chunk.levels.get(0);
-      this.drawLevelGround(objects, fallback, cx, cy, 0, false);
+      this.drawLevelGround(objects, fallback, cx, cy, 0, false, false);
     }
   }
 
-  drawLevelGround(objects, level, cx, cy, z, faded) {
+  drawLevelGround(objects, level, cx, cy, z, faded, occludesPlayer = false) {
     for (let y = 0; y < 32; y++) {
       for (let x = 0; x < 32; x++) {
         const kind = level.ground[y][x];
@@ -780,7 +790,8 @@ class IsoPngLoaderScene extends Phaser.Scene {
         g.closePath();
         g.fillPath();
         g.strokePath();
-        g.setDepth(depthForIso(gx + 0.5, gy + 0.5, z, faded ? -1200 : 0));
+        const surfaceOffset = occludesPlayer ? 0 : -5000;
+        g.setDepth(depthForIso(gx + 0.5, gy + 0.5, z, surfaceOffset + (faded ? -1200 : 0)));
         objects.push(g);
       }
     }
@@ -857,12 +868,15 @@ class IsoPngLoaderScene extends Phaser.Scene {
       const gy = cy * 32 + ramp.y;
       const len = ramp.length || 3;
       const points = this.getRampWorldPoints(gx, gy, ramp);
+      const rb = this.getRampBoundsFromMarker(gx, gy, ramp);
+      const rampDepthX = (rb.minX + rb.maxX) / 2;
+      const rampDepthY = (rb.minY + rb.maxY) / 2;
 
       if (ramp.proxyOnly) {
         const fence = this.add.graphics();
         fence.lineStyle(4, 0xe9ddb2, 0.92);
         this.drawUpperOpeningFence(fence, gx, gy, ramp, points);
-        fence.setDepth(depthForIso(gx + 0.5, gy + 0.5, ramp.toZ, 120));
+        fence.setDepth(depthForIso(rampDepthX, rampDepthY, ramp.toZ, 140));
         objects.push(fence);
         continue;
       }
@@ -871,7 +885,8 @@ class IsoPngLoaderScene extends Phaser.Scene {
       underside.fillStyle(0x8c7351, 0.26);
       underside.lineStyle(2, 0x4b3b22, 0.55);
       this.drawRampShaftWalls(underside, gx, gy, ramp, points);
-      underside.setDepth(depthForIso(gx + 0.5, gy + 0.5, ramp.fromZ, 30));
+      // Шахта/стенки являются вертикальным объектом, поэтому могут быть перед персонажем.
+      underside.setDepth(depthForIso(rampDepthX, rampDepthY, ramp.fromZ, 90));
       objects.push(underside);
 
       const { a, b, c, d } = points;
@@ -897,7 +912,8 @@ class IsoPngLoaderScene extends Phaser.Scene {
       }
 
       this.drawRampRails(g, points, len, ramp.dir);
-      g.setDepth(depthForIso(gx + 0.5, gy + 0.5, ramp.fromZ, 40));
+      // Поверхность рампы — это пол под ногами, она не должна перекрывать персонажа.
+      g.setDepth(depthForIso(rampDepthX, rampDepthY, ramp.fromZ, -2600));
       objects.push(g);
     }
   }
@@ -1564,9 +1580,8 @@ class IsoPngLoaderScene extends Phaser.Scene {
     const world = this.gridToWorld(this.playerGlobalX, this.playerGlobalY, visualZ);
     this.player.setPosition(world.x, world.y - 3);
 
-    // Главная правка: сортируем персонажа не по фактической высоте на рампе,
-    // а по текущему видимому этажу и точке ног. Тогда тайлы перед игроком
-    // перекрывают его, а тайлы позади остаются под ним.
+    // Персонаж выше пола своего этажа, но пол верхнего этажа на рампе
+    // может стать occluder-слоем и перекрыть его по x+y.
     const sortZ = this.renderZ ?? this.playerZ;
     this.player.setDepth(depthForIso(this.playerGlobalX, this.playerGlobalY, sortZ, 55));
   }
