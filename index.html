@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Zombie Iso PNG Zip Loader v0.8.4</title>
+  <title>Zombie Iso PNG Zip Loader v0.8.5</title>
   <style>
     :root {
       --safe-top: env(safe-area-inset-top, 0px);
@@ -148,7 +148,7 @@
         <button class="panel-btn" id="close-settings">Закрыть</button>
       </div>
       <div class="panel-note">
-        <span class="pill">v0.8.4 png zip loader</span>
+        <span class="pill">v0.8.5 png zip loader</span>
         Карта читается из архива <b>central_chunk_pngs.zip</b>. Центральный чанк берётся из PNG-слоёв, соседние чанки пока простая трава.
       </div>
     </div>
@@ -162,7 +162,7 @@ const MAP_OFFSET_X = 900;
 const MAP_OFFSET_Y = 70;
 const FLOOR_HEIGHT_PX = 84;
 const WALL_HEIGHT_PX = 84;
-const ARCHIVE_URL = "central_chunk_pngs.zip?v=5";
+const ARCHIVE_URL = "central_chunk_pngs.zip?v=6";
 const SETTINGS_KEY = "zombie_iso_png_loader_v081";
 
 const TileKind = {
@@ -397,6 +397,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
     this.playerGlobalX = 15.5;
     this.playerGlobalY = 16.5;
     this.playerZ = 0;
+    this.renderZ = 0;
     this.playerSpeed = 4.1;
     this.playerRadius = 0.22;
     this.player = null;
@@ -442,6 +443,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
       this.playerGlobalX = spawn.x;
       this.playerGlobalY = spawn.y;
       this.playerZ = 0;
+      this.renderZ = 0;
       this.activeRamp = null;
       this.redrawAll();
       this.syncPlayerWorldPosition();
@@ -502,6 +504,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
     this.playerGlobalX = spawn.x;
     this.playerGlobalY = spawn.y;
     this.playerZ = 0;
+    this.renderZ = 0;
     this.drawWorldAround(0, 0);
     this.createPlayer();
     this.leftStick = new VirtualStick(this, "left", this.ui);
@@ -553,9 +556,9 @@ class IsoPngLoaderScene extends Phaser.Scene {
     this.infoText.setVisible(true);
     const loc = this.globalToLocal(this.playerGlobalX, this.playerGlobalY);
     this.infoText.setText(
-      `v0.8.4 PNG ZIP loader\n` +
+      `v0.8.5 PNG ZIP loader\n` +
       `archive: ${ARCHIVE_URL}\n` +
-      `chunk: ${loc.cx},${loc.cy} z:${this.playerZ}\n` +
+      `chunk: ${loc.cx},${loc.cy} z:${this.playerZ} view:${this.renderZ}\n` +
       `local: ${loc.x.toFixed(2)},${loc.y.toFixed(2)}\n` +
       `global: ${this.playerGlobalX.toFixed(2)},${this.playerGlobalY.toFixed(2)}\n` +
       `active ramp: ${this.activeRamp ? this.activeRamp.dir : "нет"}`
@@ -729,8 +732,9 @@ class IsoPngLoaderScene extends Phaser.Scene {
     const objects = [];
     this.loadedChunkObjects.set(key, objects);
     const chunk = this.getChunk(cx, cy);
+    const viewZ = this.renderZ ?? this.playerZ;
 
-    if (this.playerZ !== 0) {
+    if (viewZ !== 0) {
       const base = chunk.levels.get(0);
       if (base) {
         this.drawLevelGround(objects, base, cx, cy, 0, true);
@@ -739,12 +743,12 @@ class IsoPngLoaderScene extends Phaser.Scene {
       }
     }
 
-    const active = chunk.levels.get(this.playerZ);
+    const active = chunk.levels.get(viewZ);
     if (active) {
-      this.drawLevelGround(objects, active, cx, cy, this.playerZ, false);
-      this.drawLevelWalls(objects, active, cx, cy, this.playerZ, false);
+      this.drawLevelGround(objects, active, cx, cy, viewZ, false);
+      this.drawLevelWalls(objects, active, cx, cy, viewZ, false);
       this.drawRampsForLevel(objects, active, cx, cy);
-    } else if (this.playerZ === 0) {
+    } else if (viewZ === 0) {
       const fallback = chunk.levels.get(0);
       this.drawLevelGround(objects, fallback, cx, cy, 0, false);
     }
@@ -860,7 +864,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
       underside.fillStyle(0x8c7351, 0.26);
       underside.lineStyle(2, 0x4b3b22, 0.55);
       this.drawRampShaftWalls(underside, gx, gy, ramp, points);
-      underside.setDepth(gx + gy + Math.max(ramp.fromZ, ramp.toZ) * 10000 + 0.55);
+      underside.setDepth(gx + gy + ramp.fromZ * 10000 + 0.55);
       objects.push(underside);
 
       const { a, b, c, d } = points;
@@ -886,7 +890,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
       }
 
       this.drawRampRails(g, points, len, ramp.dir);
-      g.setDepth(gx + gy + Math.max(ramp.fromZ, ramp.toZ) * 10000 + 0.65);
+      g.setDepth(gx + gy + ramp.fromZ * 10000 + 0.65);
       objects.push(g);
     }
   }
@@ -1102,6 +1106,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
     const dt = deltaMs / 1000;
     this.updatePlayerFacing();
     this.updatePlayerMovement(dt);
+    this.maybeUpdateRenderLevel();
     this.syncPlayerWorldPosition();
     this.updateInfoText();
   }
@@ -1314,6 +1319,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
     if (this.playerZ === ramp.fromZ) {
       if (t >= 0.97 && inputForward > 0) {
         this.playerZ = ramp.toZ;
+        this.renderZ = ramp.toZ;
         this.activeRamp = null;
         this.placeAfterRamp(ramp, true);
         this.redrawAll();
@@ -1324,6 +1330,7 @@ class IsoPngLoaderScene extends Phaser.Scene {
     } else if (this.playerZ === ramp.toZ) {
       if (t <= 0.03 && inputForward < 0) {
         this.playerZ = ramp.fromZ;
+        this.renderZ = ramp.fromZ;
         this.activeRamp = null;
         this.placeAfterRamp(ramp, false);
         this.redrawAll();
@@ -1506,6 +1513,35 @@ class IsoPngLoaderScene extends Phaser.Scene {
     return hex === COLORS.wall || hex === COLORS.window;
   }
 
+  getRenderLevelZ() {
+    if (!this.activeRamp) return this.playerZ;
+
+    const ramp = this.activeRamp;
+    const t = this.getRampProgress(ramp);
+    const switchPoint = 2 / 3;
+
+    // При спуске сверху: как только дошёл до второго тайла сверху,
+    // голова уже условно ушла на нижний этаж, поэтому показываем нижний этаж.
+    if (this.playerZ === ramp.toZ) {
+      return t <= switchPoint ? ramp.fromZ : ramp.toZ;
+    }
+
+    // При подъёме снизу симметрично переключаемся ближе к верхней трети.
+    if (this.playerZ === ramp.fromZ) {
+      return t >= switchPoint ? ramp.toZ : ramp.fromZ;
+    }
+
+    return this.playerZ;
+  }
+
+  maybeUpdateRenderLevel() {
+    const nextRenderZ = this.getRenderLevelZ();
+    if (nextRenderZ !== this.renderZ) {
+      this.renderZ = nextRenderZ;
+      this.redrawAll();
+    }
+  }
+
   getPlayerVisualZ() {
     if (!this.activeRamp) return this.playerZ;
     const t = this.getRampProgress(this.activeRamp);
@@ -1517,12 +1553,9 @@ class IsoPngLoaderScene extends Phaser.Scene {
     const visualZ = this.getPlayerVisualZ();
     const world = this.gridToWorld(this.playerGlobalX, this.playerGlobalY, visualZ);
     this.player.setPosition(world.x, world.y - 3);
-    if (this.activeRamp) {
-      // Во время подъёма персонаж должен быть виден поверх рампы/шахты.
-      this.player.setDepth(900000);
-    } else {
-      this.player.setDepth(this.playerGlobalX + this.playerGlobalY + visualZ * 10000 + 2);
-    }
+    // Без огромного depth: персонаж должен быть выше самой рампы,
+    // но не должен просвечивать сквозь пол верхнего этажа.
+    this.player.setDepth(this.playerGlobalX + this.playerGlobalY + visualZ * 10000 + 8);
   }
 
   gridToWorld(gridX, gridY, z) {
