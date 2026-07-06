@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
-    <title>Zombie Iso Prototype v0.4.4 Telegram UI</title>
+    <title>Zombie Iso Prototype v0.4.5 Telegram DOM UI</title>
 
     <style>
       html,
@@ -30,6 +30,108 @@
       canvas {
         display: block;
       }
+
+      .dom-ui-button {
+        position: fixed;
+        right: max(12px, env(safe-area-inset-right));
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 50;
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,0.28);
+        background: rgba(20, 20, 20, 0.66);
+        color: #fff;
+        font-size: 28px;
+        line-height: 52px;
+        text-align: center;
+        backdrop-filter: blur(7px);
+        -webkit-backdrop-filter: blur(7px);
+        touch-action: manipulation;
+      }
+
+      .dom-settings-panel {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 60;
+        width: min(620px, calc(100vw - 32px));
+        max-height: min(74vh, 420px);
+        overflow: auto;
+        box-sizing: border-box;
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid rgba(255,255,255,0.22);
+        background: rgba(0, 0, 0, 0.82);
+        color: #fff;
+        font-family: Arial, sans-serif;
+        backdrop-filter: blur(9px);
+        -webkit-backdrop-filter: blur(9px);
+        touch-action: manipulation;
+      }
+
+      .dom-settings-panel.hidden {
+        display: none;
+      }
+
+      .dom-settings-title {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+
+      .dom-settings-note {
+        font-size: 12px;
+        color: rgba(255,255,255,0.72);
+        margin-bottom: 12px;
+      }
+
+      .dom-settings-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .dom-settings-panel button {
+        min-height: 44px;
+        border: 0;
+        border-radius: 12px;
+        background: rgba(255,255,255,0.16);
+        color: #fff;
+        font-size: 14px;
+        font-family: Arial, sans-serif;
+        touch-action: manipulation;
+      }
+
+      .dom-settings-panel button:active,
+      .dom-ui-button:active {
+        transform: scale(0.96);
+        opacity: 0.82;
+      }
+
+      .dom-ui-button:active {
+        transform: translateY(-50%) scale(0.96);
+      }
+
+      @media (orientation: portrait) {
+        .dom-ui-button {
+          top: auto;
+          right: max(14px, env(safe-area-inset-right));
+          bottom: calc(48% + env(safe-area-inset-bottom));
+          transform: none;
+        }
+
+        .dom-ui-button:active {
+          transform: scale(0.96);
+        }
+
+        .dom-settings-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
     </style>
 
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -38,6 +140,25 @@
 
   <body>
     <div id="game"></div>
+    <button id="dom-ui-button" class="dom-ui-button" type="button">⚙</button>
+    <div id="dom-settings-panel" class="dom-settings-panel hidden">
+      <div class="dom-settings-title">Настройки</div>
+      <div class="dom-settings-note">DOM-меню поверх игры: должно нажиматься в Telegram и в горизонтальной ориентации.</div>
+      <div class="dom-settings-grid">
+        <button id="dom-debug" type="button">Debug: выкл</button>
+        <button id="dom-nudge" type="button">Сдвиг 1 тайл</button>
+        <button id="dom-close" type="button">Закрыть</button>
+        <button id="dom-up" type="button">Стики ↑</button>
+        <button id="dom-down" type="button">Стики ↓</button>
+        <button id="dom-reset-ui" type="button">Сброс UI</button>
+        <button id="dom-center" type="button">К центру +</button>
+        <button id="dom-edge" type="button">К краям -</button>
+        <button id="dom-size-plus" type="button">Размер +</button>
+        <button id="dom-size-minus" type="button">Размер -</button>
+        <button id="dom-bright" type="button">Ярче</button>
+        <button id="dom-fade" type="button">Бледнее</button>
+      </div>
+    </div>
 
     <script>
       const TILE_W = 64;
@@ -56,7 +177,7 @@
         Dirt: 3,
       };
 
-      const UI_STORAGE_KEY = "zombie_iso_ui_v044";
+      const UI_STORAGE_KEY = "zombie_iso_ui_v045";
 
       const DEFAULT_UI_SETTINGS = {
         // stickXFactor: больше значение = стики ближе к центру.
@@ -300,6 +421,72 @@
         }
       }
 
+      function setupDomUi(scene) {
+        const uiButton = document.getElementById("dom-ui-button");
+        const panel = document.getElementById("dom-settings-panel");
+        const debugButton = document.getElementById("dom-debug");
+
+        if (!uiButton || !panel) return;
+
+        const stop = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        };
+
+        const setPanelOpen = (open) => {
+          panel.classList.toggle("hidden", !open);
+          if (scene.leftStick) scene.leftStick.reset();
+          if (scene.rightStick) scene.rightStick.reset();
+        };
+
+        const updateDebugButton = () => {
+          if (!debugButton) return;
+          debugButton.textContent = scene.debugVisible ? "Debug: вкл" : "Debug: выкл";
+        };
+
+        const bind = (id, callback) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.addEventListener("pointerdown", stop, { passive: false });
+          el.addEventListener("touchstart", stop, { passive: false });
+          el.addEventListener("click", (event) => {
+            stop(event);
+            callback();
+            updateDebugButton();
+          });
+        };
+
+        uiButton.addEventListener("pointerdown", stop, { passive: false });
+        uiButton.addEventListener("touchstart", stop, { passive: false });
+        uiButton.addEventListener("click", (event) => {
+          stop(event);
+          setPanelOpen(panel.classList.contains("hidden"));
+          updateDebugButton();
+        });
+
+        panel.addEventListener("pointerdown", stop, { passive: false });
+        panel.addEventListener("touchstart", stop, { passive: false });
+        panel.addEventListener("click", (event) => event.stopPropagation());
+
+        bind("dom-debug", () => scene.toggleDebugVisible());
+        bind("dom-nudge", () => {
+          scene.nudgePlayerToNeighborTile();
+          setPanelOpen(false);
+        });
+        bind("dom-close", () => setPanelOpen(false));
+        bind("dom-up", () => scene.changeStickSetting("stickYFactor", 0.025, 0.16, 0.46));
+        bind("dom-down", () => scene.changeStickSetting("stickYFactor", -0.025, 0.16, 0.46));
+        bind("dom-reset-ui", () => scene.resetUiSettings());
+        bind("dom-center", () => scene.changeStickSetting("stickXFactor", 0.025, 0.13, 0.38));
+        bind("dom-edge", () => scene.changeStickSetting("stickXFactor", -0.025, 0.13, 0.38));
+        bind("dom-size-plus", () => scene.changeStickSetting("stickRadius", 4, 40, 90));
+        bind("dom-size-minus", () => scene.changeStickSetting("stickRadius", -4, 40, 90));
+        bind("dom-bright", () => scene.changeStickSetting("stickOpacity", 0.1, 0.25, 1));
+        bind("dom-fade", () => scene.changeStickSetting("stickOpacity", -0.1, 0.25, 1));
+
+        updateDebugButton();
+      }
+
       class IsoPrototypeScene extends Phaser.Scene {
         constructor() {
           super("IsoPrototypeScene");
@@ -418,12 +605,9 @@
             .setScrollFactor(0)
             .setDepth(100001);
 
-          // Единственная постоянная кнопка интерфейса. Всё остальное внутри меню.
-          this.uiButton = this.makeUiButton("⚙", this.getSettingsButtonX(), this.getSettingsButtonY(), () => {
-            this.toggleUiPanel();
-          }, "#244c88ee");
-
-          this.createUiPanel();
+          // Phaser-кнопки в Telegram конфликтовали с ориентацией и тачем.
+          // Настройки теперь живут в обычном DOM-слое поверх canvas.
+          setupDomUi(this);
           this.applyUiVisibility();
 
           this.scale.on("resize", () => {
@@ -613,7 +797,7 @@
           );
 
           this.infoText.setText(
-            `v0.4.3 Telegram UI\n` +
+            `v0.4.5 Telegram DOM UI\n` +
               `Чанков: ${this.renderedChunks.size} | центр: ${this.centerChunkX}, ${this.centerChunkY}\n` +
               `Игрок: чанк ${cx},${cy} | локально ${local.x.toFixed(1)} / ${local.y.toFixed(1)}\n` +
               `Глобально: ${this.playerGlobalX.toFixed(1)} / ${this.playerGlobalY.toFixed(1)}`
