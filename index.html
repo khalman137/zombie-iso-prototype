@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
-    <title>Zombie Iso Prototype v0.4.2 Telegram UI</title>
+    <title>Zombie Iso Prototype v0.4.3 Telegram UI</title>
 
     <style>
       html,
@@ -56,7 +56,7 @@
         Dirt: 3,
       };
 
-      const UI_STORAGE_KEY = "zombie_iso_ui_v042";
+      const UI_STORAGE_KEY = "zombie_iso_ui_v043";
 
       const DEFAULT_UI_SETTINGS = {
         // stickXFactor: больше значение = стики ближе к центру.
@@ -371,12 +371,20 @@
 
         getSettingsButtonX() {
           // Не ставим кнопку сверху: её перекрывают нативные кнопки Telegram.
-          // Держим её внизу по центру между стиками.
-          return this.scale.width / 2 - 24;
+          // Кнопка живёт над стиками, по центру экрана.
+          return this.scale.width / 2 - 45;
         }
 
         getSettingsButtonY() {
-          return this.scale.height - 88;
+          const h = this.scale.height;
+
+          // В Telegram видимая нижняя область может отличаться от canvas height.
+          // Поэтому привязываемся к стикам, а не к самому низу экрана.
+          if (this.leftStick) {
+            return Math.max(this.getTopSafeY() + 70, this.leftStick.centerY - this.leftStick.radius - 62);
+          }
+
+          return h * 0.68;
         }
 
         createUi() {
@@ -403,9 +411,9 @@
             .setDepth(100001);
 
           // Единственная постоянная кнопка интерфейса. Всё остальное внутри меню.
-          this.uiButton = this.makeUiButton("⚙", this.getSettingsButtonX(), this.getSettingsButtonY(), () => {
+          this.uiButton = this.makeUiButton("⚙ UI", this.getSettingsButtonX(), this.getSettingsButtonY(), () => {
             this.toggleUiPanel();
-          }, "#244c88dd");
+          }, "#244c88ee");
 
           this.createUiPanel();
           this.applyUiVisibility();
@@ -421,10 +429,10 @@
           const button = this.add
             .text(x, y, label, {
               fontFamily: "Arial",
-              fontSize: label === "⚙" ? "22px" : "14px",
+              fontSize: label.startsWith("⚙") ? "20px" : "14px",
               color: "#ffffff",
               backgroundColor: color,
-              padding: { x: label === "⚙" ? 13 : 10, y: label === "⚙" ? 9 : 8 },
+              padding: { x: label.startsWith("⚙") ? 15 : 10, y: label.startsWith("⚙") ? 10 : 8 },
             })
             .setScrollFactor(0)
             .setDepth(100002)
@@ -583,7 +591,7 @@
           );
 
           this.infoText.setText(
-            `v0.4.2 Telegram UI\n` +
+            `v0.4.3 Telegram UI\n` +
               `Чанков: ${this.renderedChunks.size} | центр: ${this.centerChunkX}, ${this.centerChunkY}\n` +
               `Игрок: чанк ${cx},${cy} | локально ${local.x.toFixed(1)} / ${local.y.toFixed(1)}\n` +
               `Глобально: ${this.playerGlobalX.toFixed(1)} / ${this.playerGlobalY.toFixed(1)}`
