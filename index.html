@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<title>Zombie Topdown 2.5D v1.0.0 chunk64</title>
+<title>Zombie Topdown 2.5D v1.0.1 chunk64 syntax fix</title>
 <style>
   :root{--safe-right:env(safe-area-inset-right,0px)}
   html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
@@ -51,7 +51,7 @@
     <div class="panel-row"><button class="panel-btn" id="open-logs">Логи</button><button class="panel-btn" id="clear-logs">Очистить логи</button></div>
     <div id="log-panel"><div id="log-output">Лог пуст.</div></div>
     <div class="panel-row single"><button class="panel-btn" id="close-settings">Закрыть</button></div>
-    <div class="panel-note"><span class="pill">v1.0.0 topdown 2.5D · CHUNK64_STAIRS_100</span> Новый chunk64 PNG-формат: 64×64 floor/stairs, 67×67 walls, отдельный слой stairs.</div>
+    <div class="panel-note"><span class="pill">v1.0.1 topdown 2.5D · CHUNK64_FIX_101</span> Новый chunk64 PNG-формат: 64×64 floor/stairs, 67×67 walls, отдельный слой stairs.</div>
   </div>
 </div>
 <script>
@@ -63,7 +63,7 @@ function gameStep(s){window.__lastGameStep=s;gameLog('step',s)}
 window.addEventListener('error',function(e){gameLog('JS','at '+(window.__lastGameStep||'?')+': '+e.message+' '+(e.filename||'')+':'+(e.lineno||''));});
 window.addEventListener('unhandledrejection',function(e){var msg=(e.reason&&e.reason.message?e.reason.message:String(e.reason));if(msg&&msg.indexOf('Failed to start the audio device')>=0){gameLog('audio','ignored: '+msg);return;}gameLog('Promise','at '+(window.__lastGameStep||'?')+': '+msg);});
 const TILE_W=54, TILE_H=38, CHUNK_SIZE=64, FLOOR_HEIGHT_PX=86, WALL_HEIGHT_PX=82;
-const ARCHIVE_URL='central_chunk64_game_pngs.zip?v=1';
+const ARCHIVE_URL='central_chunk64_game_pngs.zip?v=2';
 const SETTINGS_KEY='zombie_topdown_25d_v10';
 const DEPTH_Z=100000;
 window.__cameraRotation=0;window.__viewAnchorX=0;window.__viewAnchorY=0;
@@ -101,10 +101,7 @@ create(){this.input.addPointer(3);this.setupDom();this.cameras.main.setBackgroun
 setupDom(){const panel=document.getElementById('settings-panel'),logs=document.getElementById('log-panel');const zoomIn=()=>{this.ui.zoom=Math.min(1.7,this.ui.zoom+.08);this.applyUi()};const zoomOut=()=>{this.ui.zoom=Math.max(.7,this.ui.zoom-.08);this.applyUi()};const rotate=()=>{this.ui.cameraRotation=((this.ui.cameraRotation||0)+1)%4;this.cameraRotation=this.ui.cameraRotation;this.applyUi();this.redrawAll&&this.redrawAll();this.syncPlayer&&this.syncPlayer();gameLog('camera','true redraw rotation '+this.ui.cameraRotation*90+'°')};bindPress(document.getElementById('settings-btn'),()=>panel.style.display=panel.style.display==='block'?'none':'block');bindPress(document.getElementById('close-settings'),()=>panel.style.display='none');bindPress(document.getElementById('debug-toggle'),()=>{this.ui.debug=!this.ui.debug;saveUi(this.ui);this.updateInfo()});bindPress(document.getElementById('reset-player'),()=>{const s=this.findSpawn();this.playerGlobalX=s.x;this.playerGlobalY=s.y;this.playerZ=0;this.renderZ=0;this.activeRamp=null;this.redrawAll();this.syncPlayer()});bindPress(document.getElementById('zoom-in'),zoomIn);bindPress(document.getElementById('zoom-out'),zoomOut);bindPress(document.getElementById('quick-zoom-in'),zoomIn);bindPress(document.getElementById('quick-zoom-out'),zoomOut);bindPress(document.getElementById('quick-rotate'),rotate);bindPress(document.getElementById('open-logs'),()=>{logs.style.display=logs.style.display==='block'?'none':'block';updateLogPanel()});bindPress(document.getElementById('clear-logs'),()=>{window.__gameLogs=[];updateLogPanel()});bindPress(document.getElementById('stick-up'),()=>{this.ui.stickBottomOffset=Math.min(.38,this.ui.stickBottomOffset+.02);this.applyUi()});bindPress(document.getElementById('stick-down'),()=>{this.ui.stickBottomOffset=Math.max(.12,this.ui.stickBottomOffset-.02);this.applyUi()});bindPress(document.getElementById('stick-in'),()=>{this.ui.stickCenterOffset=Math.min(.32,this.ui.stickCenterOffset+.02);this.applyUi()});bindPress(document.getElementById('stick-out'),()=>{this.ui.stickCenterOffset=Math.max(.12,this.ui.stickCenterOffset-.02);this.applyUi()})}
 applyUi(){saveUi(this.ui);this.cameraRotation=this.ui.cameraRotation||0;window.__cameraRotation=this.cameraRotation;this.cameras.main.setZoom(this.ui.zoom);this.cameras.main.setRotation(0);if(this.leftStick)this.leftStick.applySettings();if(this.rightStick)this.rightStick.applySettings();this.updateInfo&&this.updateInfo();this.updateCompass&&this.updateCompass()}
 async loadWorldArchive(){const r=await fetch(ARCHIVE_URL,{cache:'no-store'});if(!r.ok)throw new Error(`Не удалось загрузить ${ARCHIVE_URL}: ${r.status}`);const zip=await JSZip.loadAsync(await r.arrayBuffer());const layers={z0_floor:await readZipPng(zip,'z0_floor.png'),z1_floor:await readZipPng(zip,'z1_floor.png'),z0_stairs:await readZipPng(zip,'z0_stairs.png'),z0_walls:await readZipPng(zip,'z0_walls.png'),z1_walls:await readZipPng(zip,'z1_walls.png'),z0_markers:await readZipPng(zip,'z0_markers.png')};this.chunkData.set('0,0',this.buildChunk(layers))}
-showLoadError(e){console.error(e);if(this.loadingText)this.loadingText.setText('Ошибка загрузки архива:
-'+e.message+'
-
-index.html и central_chunk64_game_pngs.zip должны лежать рядом.')}
+showLoadError(e){console.error(e);gameLog('load','archive error: '+(e&&e.message?e.message:e));const msg=`Ошибка загрузки архива:\n${e&&e.message?e.message:e}\n\nindex.html и central_chunk64_game_pngs.zip должны лежать рядом.`;if(this.loadingText)this.loadingText.setText(msg);try{const box=document.getElementById('debug-box');if(box){box.style.display='block';box.textContent=msg}}catch(_){}}
 startGame(){try{gameStep('startGame: destroy loading');if(this.loadingText)this.loadingText.destroy();gameStep('startGame: find spawn');const s=this.findSpawn();this.playerGlobalX=s.x;this.playerGlobalY=s.y;this.playerZ=0;this.renderZ=0;gameStep('startGame: create sticks');this.leftStick=new VirtualStick(this,'left',this.ui);this.rightStick=new VirtualStick(this,'right',this.ui);gameStep('startGame: create player');this.createPlayer();gameStep('startGame: camera');this.cameras.main.startFollow(this.player,true,.12,.12);this.applyUi();gameStep('startGame: ui text');this.createInfo();this.createCompass();gameStep('startGame: draw world');this.setViewAnchor();this.drawWorldAround(0,0);gameStep('startGame: ok');}catch(e){gameStep('startGame FAILED: '+(window.__lastGameStep||'?'));throw e}}
 createInfo(){this.infoText=document.getElementById('debug-box');this.updateInfo()}
 createCompass(){this.compassText=document.getElementById('compass-box');this.updateCompass()}
@@ -114,7 +111,7 @@ redraw ${r}°
 → east
 ↓ south
 ← west`}
-updateInfo(){if(!this.infoText)return;if(!this.ui.debug){this.infoText.style.display='none';return}this.infoText.style.display='block';const l=this.globalToLocal(this.playerGlobalX,this.playerGlobalY);this.infoText.textContent=`v1.0.0 topdown 2.5D · CHUNK64_STAIRS_100
+updateInfo(){if(!this.infoText)return;if(!this.ui.debug){this.infoText.style.display='none';return}this.infoText.style.display='block';const l=this.globalToLocal(this.playerGlobalX,this.playerGlobalY);this.infoText.textContent=`v1.0.1 topdown 2.5D · CHUNK64_FIX_101
 archive: ${ARCHIVE_URL}
 rotation: ${(this.ui.cameraRotation||0)*90}° pivot redraw zoom:${this.ui.zoom.toFixed(2)}
 chunk: ${l.cx},${l.cy} z:${this.playerZ} view:${this.renderZ}
